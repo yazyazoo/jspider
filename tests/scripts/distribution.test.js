@@ -50,9 +50,17 @@ describe('local distribution configuration', () => {
     await expect(exists(join(root, 'dist', 'config.local.json'))).resolves.toBe(false);
   });
 
+  it('packages the top-level log directory authorization page', async () => {
+    const buildScript = await readFile(new URL('../../scripts/build.mjs', import.meta.url), 'utf8');
+    expect(buildScript).toContain("src/log-directory/index.ts");
+    expect(buildScript).toContain("log-directory.html");
+    expect(buildScript).toContain("log-directory.css");
+  });
+
   it('publishes an MDBList placeholder without publishing a local key', async () => {
     const example = JSON.parse(await readFile(new URL('../../config.example.json', import.meta.url), 'utf8'));
     expect(example.mdblistApiKey).toBe('INSERISCI_API_KEY_MDBLIST');
+    expect(example._logDirectory).toBe('SELEZIONA_DALLE_IMPOSTAZIONI_JSPIDER');
   });
 
   it('copies an existing local configuration byte for byte', async () => {
@@ -150,10 +158,18 @@ describe('single-repository documentation', () => {
 
     expect(ignoreRules.split(/\r?\n/)).not.toContain('dist/');
     expect(ignoreRules.split(/\r?\n/)).toContain('config.local.json');
+    expect(ignoreRules.split(/\r?\n/)).toContain('log/');
     expect(english).toContain(distUrl);
     expect(english).toContain(zipUrl);
     expect(italian).toContain(distUrl);
     expect(italian).toContain(zipUrl);
+  });
+
+  it('documents the selected local JSON log history in both languages', async () => {
+    const english = await readFile(new URL('../../docs/configuration.md', import.meta.url), 'utf8');
+    const italian = await readFile(new URL('../../docs/configuration.it.md', import.meta.url), 'utf8');
+    expect(english).toContain('Quick Workflow log folder');
+    expect(italian).toContain('Cartella log Quick Workflow');
   });
 
   it('makes CI reject a tracked dist folder that is out of sync', async () => {

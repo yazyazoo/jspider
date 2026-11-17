@@ -145,11 +145,11 @@ function errorPayload(reason) {
 async function submitPackageBatch(input, autodownload) {
   try {
     if (!input.integrationId.trim()) throw new Error("Seleziona un\u2019integrazione JDownloader TaskFlow.");
-    const request = buildSubmissionBatch(input.variants, input.hosts, autodownload);
-    await emitLog(input.onLogEvent, { phase: "submission", kind: "request", payload: request });
-    const rawResults = await input.api.submitPackages(input.integrationId, request);
+    const request2 = buildSubmissionBatch(input.variants, input.hosts, autodownload);
+    await emitLog(input.onLogEvent, { phase: "submission", kind: "request", payload: request2 });
+    const rawResults = await input.api.submitPackages(input.integrationId, request2);
     await emitLog(input.onLogEvent, { phase: "submission", kind: "response", payload: rawResults });
-    const submission = analyzeSubmissionResults(request.packages, rawResults, autodownload);
+    const submission = analyzeSubmissionResults(request2.packages, rawResults, autodownload);
     if (submission.failures.length) throw new SubmissionBatchError(submission);
     return submission;
   } catch (reason) {
@@ -243,11 +243,11 @@ function imdbSearchUrl(item2, fallbackYear) {
 function arrayField(value, key) {
   return isRecord2(value) && Array.isArray(value[key]) ? value[key] : [];
 }
-async function fillMissingEnglishOverviews(candidates, request) {
+async function fillMissingEnglishOverviews(candidates, request2) {
   return Promise.all(candidates.map(async (item2) => {
     if (item2.overview.trim()) return item2;
     try {
-      const details = await request(`/${item2.mediaKind}/${item2.id}`, { language: "en-US" });
+      const details = await request2(`/${item2.mediaKind}/${item2.id}`, { language: "en-US" });
       const overview = isRecord2(details) && typeof details.overview === "string" ? details.overview.trim() : "";
       return overview ? { ...item2, overview } : item2;
     } catch {
@@ -255,13 +255,13 @@ async function fillMissingEnglishOverviews(candidates, request) {
     }
   }));
 }
-async function searchTmdb(input, request) {
+async function searchTmdb(input, request2) {
   const title = input.title.trim();
   const year = input.year.trim();
   if (!title || title.length > 200) throw new Error("Inserisci un titolo di massimo 200 caratteri.");
   if (year && !/^\d{4}$/.test(year)) throw new Error("Inserisci un anno di quattro cifre oppure lascialo vuoto.");
   if (input.mode === "auto" && /^tt\d+$/.test(input.imdbId)) {
-    const found2 = await request(`/find/${input.imdbId}`, {
+    const found2 = await request2(`/find/${input.imdbId}`, {
       external_source: "imdb_id",
       language: "it-IT"
     });
@@ -272,7 +272,7 @@ async function searchTmdb(input, request) {
       `https://www.imdb.com/title/${input.imdbId}/`
     )).filter((item2) => item2 !== null);
     if (candidates2.length === 1) {
-      return { method: "imdb", candidates: await fillMissingEnglishOverviews(candidates2, request) };
+      return { method: "imdb", candidates: await fillMissingEnglishOverviews(candidates2, request2) };
     }
   }
   const params = {
@@ -282,9 +282,9 @@ async function searchTmdb(input, request) {
     include_adult: false
   };
   if (year) params[input.mediaKind === "tv" ? "first_air_date_year" : "year"] = year;
-  const found = await request(`/search/${input.mediaKind}`, params);
+  const found = await request2(`/search/${input.mediaKind}`, params);
   const candidates = arrayField(found, "results").map((item2) => candidate(item2, input.mediaKind)).filter((item2) => item2 !== null).slice(0, 10).map((item2) => ({ ...item2, imdbUrl: imdbSearchUrl(item2, year) }));
-  return { method: "title", candidates: await fillMissingEnglishOverviews(candidates, request) };
+  return { method: "title", candidates: await fillMissingEnglishOverviews(candidates, request2) };
 }
 
 // src/domain/taskflow-url.ts
@@ -442,17 +442,17 @@ async function handleActionClick(tab, dependencies) {
 }
 
 // src/background/page-bridge.ts
-async function forwardPageMessage(ownerTabId, request, sendMessage) {
+async function forwardPageMessage(ownerTabId, request2, sendMessage) {
   if (!Number.isInteger(ownerTabId)) {
     throw new Error("Impossibile individuare la scheda proprietaria di JSpider.");
   }
-  if (!request || typeof request.action !== "string" || !request.action) {
+  if (!request2 || typeof request2.action !== "string" || !request2.action) {
     throw new Error("Azione pagina non valida.");
   }
   const message = {
     target: "content",
-    action: request.action,
-    ...request.data ?? {}
+    action: request2.action,
+    ...request2.data ?? {}
   };
   const response = await sendMessage(ownerTabId, message);
   if (!response || response.ok !== true) {
@@ -485,14 +485,14 @@ var TaskFlowClient = class {
   baseUrl;
   #token;
   #fetcher;
-  constructor(baseUrl, token, fetcher = (request) => fetch(request)) {
+  constructor(baseUrl, token, fetcher = (request2) => fetch(request2)) {
     this.baseUrl = normalizeTaskFlowBaseUrl(baseUrl);
     this.#token = token.trim();
     if (!this.#token) throw new Error("Configura il token amministrativo TaskFlow.");
     this.#fetcher = fetcher;
   }
   async #request(path, init = {}) {
-    const request = new Request(`${this.baseUrl}${path}`, {
+    const request2 = new Request(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
         accept: "application/json",
@@ -503,7 +503,7 @@ var TaskFlowClient = class {
     });
     let response;
     try {
-      response = await this.#fetcher(request);
+      response = await this.#fetcher(request2);
     } catch (reason) {
       throw safeNetworkError(reason, this.#token);
     }
@@ -536,10 +536,10 @@ var TaskFlowClient = class {
   getPresets() {
     return this.#request("/api/v1/workflow-presets");
   }
-  submitPackages(integrationId, request) {
+  submitPackages(integrationId, request2) {
     return this.#request(`/api/v1/integrations/${encodeURIComponent(integrationId)}/submission`, {
       method: "POST",
-      body: JSON.stringify(request)
+      body: JSON.stringify(request2)
     });
   }
   async createWorkflow(payload) {
@@ -567,7 +567,7 @@ var TaskFlowClient = class {
 var TmdbClient = class {
   #credential;
   #fetcher;
-  constructor(credential, fetcher = (request) => fetch(request)) {
+  constructor(credential, fetcher = (request2) => fetch(request2)) {
     this.#credential = credential.trim();
     if (!this.#credential) throw new Error("Configura il token o la API key TMDB.");
     this.#fetcher = fetcher;
@@ -580,7 +580,7 @@ var TmdbClient = class {
     }
     const v3Key = /^[a-f0-9]{32}$/i.test(this.#credential);
     if (v3Key) url.searchParams.set("api_key", this.#credential);
-    const request = new Request(url, {
+    const request2 = new Request(url, {
       headers: {
         accept: "application/json",
         ...!v3Key ? { authorization: `Bearer ${this.#credential}` } : {}
@@ -588,7 +588,7 @@ var TmdbClient = class {
     });
     let response;
     try {
-      response = await this.#fetcher(request);
+      response = await this.#fetcher(request2);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Connessione a TMDB non riuscita.";
       throw new Error(message.split(this.#credential).join("[redacted]"));
@@ -671,7 +671,7 @@ function endpoint(baseUrl) {
   return new URL(`${baseUrl}${/\/emby$/i.test(new URL(baseUrl).pathname) ? "" : "/emby"}/Items`);
 }
 var EmbyClient = class {
-  constructor(baseUrl, token, fetcher = (request) => fetch(request), timeoutMs = 1e4) {
+  constructor(baseUrl, token, fetcher = (request2) => fetch(request2), timeoutMs = 1e4) {
     this.token = token;
     this.fetcher = fetcher;
     this.timeoutMs = timeoutMs;
@@ -828,7 +828,7 @@ function normalizeMdbListMedia(value, input) {
 var MdbListClient = class {
   #apiKey;
   #fetcher;
-  constructor(apiKey, fetcher = (request) => fetch(request)) {
+  constructor(apiKey, fetcher = (request2) => fetch(request2)) {
     this.#apiKey = apiKey.trim();
     if (!this.#apiKey) throw new Error("Configura la API key MDBList.");
     this.#fetcher = fetcher;
@@ -860,6 +860,109 @@ var MdbListClient = class {
   }
 };
 
+// src/background/log-directory.ts
+var DATABASE_NAME = "jspider-local-files";
+var DATABASE_VERSION = 1;
+var STORE_NAME = "handles";
+var DIRECTORY_KEY = "quick-workflow-log-directory";
+function request(operation) {
+  return new Promise((resolve, reject) => {
+    operation.onsuccess = () => resolve(operation.result);
+    operation.onerror = () => reject(operation.error ?? new Error("IndexedDB non disponibile."));
+  });
+}
+function waitForTransaction(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    const failed = () => reject(transaction.error ?? new Error("Salvataggio IndexedDB non riuscito."));
+    transaction.onerror = failed;
+    transaction.onabort = failed;
+  });
+}
+var LogDirectoryRepository = class {
+  constructor(suppliedFactory) {
+    this.suppliedFactory = suppliedFactory;
+  }
+  suppliedFactory;
+  open() {
+    return new Promise((resolve, reject) => {
+      const operation = (this.suppliedFactory ?? indexedDB).open(DATABASE_NAME, DATABASE_VERSION);
+      operation.onupgradeneeded = () => {
+        if (!operation.result.objectStoreNames.contains(STORE_NAME)) {
+          operation.result.createObjectStore(STORE_NAME);
+        }
+      };
+      operation.onsuccess = () => resolve(operation.result);
+      operation.onerror = () => reject(operation.error ?? new Error("IndexedDB non disponibile."));
+    });
+  }
+  async load() {
+    const database = await this.open();
+    try {
+      const value = await request(database.transaction(STORE_NAME).objectStore(STORE_NAME).get(DIRECTORY_KEY));
+      return value && typeof value === "object" && "getFileHandle" in value ? value : null;
+    } finally {
+      database.close();
+    }
+  }
+  async save(handle2) {
+    const database = await this.open();
+    try {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const committed = waitForTransaction(transaction);
+      await request(transaction.objectStore(STORE_NAME).put(handle2, DIRECTORY_KEY));
+      await committed;
+    } finally {
+      database.close();
+    }
+  }
+  async status() {
+    const handle2 = await this.load();
+    if (!handle2) return { configured: false, name: null, permission: "missing" };
+    return {
+      configured: true,
+      name: handle2.name,
+      permission: await handle2.queryPermission({ mode: "readwrite" })
+    };
+  }
+};
+function pad(value, length = 2) {
+  return String(value).padStart(length, "0");
+}
+function createWorkflowLogFilename(workflowName, startedAt) {
+  const safeName = workflowName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^[_.]+|[_.]+$/g, "").slice(0, 100) || "Quick_Workflow";
+  const date = new Date(startedAt);
+  const timestamp = [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate())
+  ].join("-") + "_" + [
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+    pad(date.getMilliseconds(), 3)
+  ].join("-");
+  return `${timestamp}_${safeName}.json`;
+}
+var QuickWorkflowFileWriter = class {
+  constructor(repository) {
+    this.repository = repository;
+  }
+  repository;
+  async write(document) {
+    const directory = await this.repository.load();
+    if (!directory || await directory.queryPermission({ mode: "readwrite" }) !== "granted") {
+      return false;
+    }
+    const file = await directory.getFileHandle(document.fileName, { create: true });
+    const writable = await file.createWritable();
+    await writable.write(`${JSON.stringify(document, null, 2)}
+`);
+    await writable.close();
+    return true;
+  }
+};
+
 // src/background/quick-workflow-log.ts
 var STORAGE_KEY2 = "jspider.quickWorkflowLog";
 function serializable(value) {
@@ -877,18 +980,37 @@ function serializable(value) {
 function isDocument(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate2 = value;
-  return typeof candidate2.startedAt === "string" && typeof candidate2.updatedAt === "string" && typeof candidate2.runId === "string" && Array.isArray(candidate2.entries);
+  return typeof candidate2.startedAt === "string" && typeof candidate2.updatedAt === "string" && typeof candidate2.runId === "string" && typeof candidate2.workflowName === "string" && typeof candidate2.fileName === "string" && Array.isArray(candidate2.entries);
 }
 var QuickWorkflowLogStore = class {
-  constructor(storage, now = () => (/* @__PURE__ */ new Date()).toISOString(), createRunId = () => crypto.randomUUID()) {
+  constructor(storage, now = () => (/* @__PURE__ */ new Date()).toISOString(), createRunId = () => crypto.randomUUID(), history) {
     this.storage = storage;
     this.now = now;
     this.createRunId = createRunId;
+    this.history = history;
   }
   storage;
   now;
   createRunId;
+  history;
   operations = Promise.resolve();
+  historyOperations = Promise.resolve();
+  runs = /* @__PURE__ */ new Map();
+  latestRunId = null;
+  mirror(document) {
+    if (!this.history) return;
+    this.historyOperations = this.historyOperations.then(() => this.history.write(document)).then(() => void 0).catch(() => void 0);
+  }
+  async flushHistory(maxWaitMs = 500) {
+    if (!this.history) return;
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, maxWaitMs);
+      void this.historyOperations.finally(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
   serialize(operation) {
     const result = this.operations.then(operation, operation);
     this.operations = result.then(() => void 0, () => void 0);
@@ -898,21 +1020,35 @@ var QuickWorkflowLogStore = class {
     const result = await this.storage.get(STORAGE_KEY2);
     return isDocument(result[STORAGE_KEY2]) ? result[STORAGE_KEY2] : null;
   }
-  start() {
+  start(workflowName = "Quick Workflow") {
     const runId = this.createRunId();
     return this.serialize(async () => {
       const timestamp = this.now();
-      await this.storage.set({
-        [STORAGE_KEY2]: { runId, startedAt: timestamp, updatedAt: timestamp, entries: [] }
-      });
+      const document = {
+        runId,
+        workflowName,
+        fileName: createWorkflowLogFilename(workflowName, timestamp),
+        startedAt: timestamp,
+        updatedAt: timestamp,
+        entries: []
+      };
+      this.runs.set(runId, document);
+      this.latestRunId = runId;
+      try {
+        await this.storage.set({ [STORAGE_KEY2]: document });
+      } catch {
+      }
+      this.mirror(document);
       return runId;
     });
   }
   append(event, runId) {
     return this.serialize(async () => {
       const timestamp = this.now();
-      const current = await this.readDirect();
-      if (!current || runId !== void 0 && current.runId !== runId) return;
+      const targetRunId = runId ?? this.latestRunId;
+      if (!targetRunId) return;
+      const current = this.runs.get(targetRunId) ?? (this.latestRunId === targetRunId ? await this.readDirect() : null);
+      if (!current || current.runId !== targetRunId) return;
       const entry = {
         timestamp,
         phase: event.phase,
@@ -920,13 +1056,19 @@ var QuickWorkflowLogStore = class {
         payload: serializable(event.payload),
         ...event.metadata ? { metadata: serializable(event.metadata) } : {}
       };
-      await this.storage.set({
-        [STORAGE_KEY2]: {
-          ...current,
-          updatedAt: timestamp,
-          entries: [...current.entries, entry]
+      const document = {
+        ...current,
+        updatedAt: timestamp,
+        entries: [...current.entries, entry]
+      };
+      this.runs.set(targetRunId, document);
+      if (this.latestRunId === targetRunId) {
+        try {
+          await this.storage.set({ [STORAGE_KEY2]: document });
+        } catch {
         }
-      });
+      }
+      this.mirror(document);
     });
   }
   async read() {
@@ -934,7 +1076,10 @@ var QuickWorkflowLogStore = class {
     return this.readDirect();
   }
   clear() {
-    return this.serialize(() => this.storage.remove(STORAGE_KEY2));
+    return this.serialize(async () => {
+      this.latestRunId = null;
+      await this.storage.remove(STORAGE_KEY2);
+    });
   }
 };
 async function handleQuickWorkflowLogAction(action, store) {
@@ -947,11 +1092,12 @@ async function handleQuickWorkflowLogAction(action, store) {
 }
 
 // src/background/index.ts
+var logDirectory = new LogDirectoryRepository();
 var quickWorkflowLog = new QuickWorkflowLogStore({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items),
   remove: (key) => chrome.storage.local.remove(key)
-});
+}, void 0, void 0, new QuickWorkflowFileWriter(logDirectory));
 chrome.action.onClicked.addListener((tab) => {
   void handleActionClick(tab, {
     sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message)
@@ -976,16 +1122,17 @@ function serializeError(reason) {
 async function handle(message, sender) {
   if (message.target !== "background") throw new Error("Destinazione messaggio non valida.");
   if (message.action === "page.forward") {
-    const request = message.request && typeof message.request === "object" ? message.request : { action: "" };
+    const request2 = message.request && typeof message.request === "object" ? message.request : { action: "" };
     return forwardPageMessage(
       sender.tab?.id,
-      request,
+      request2,
       (tabId, pageMessage) => chrome.tabs.sendMessage(tabId, pageMessage)
     );
   }
   if (message.action === "taskflow.quickWorkflowLog.get" || message.action === "taskflow.quickWorkflowLog.clear") {
     return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
+  if (message.action === "taskflow.logDirectory.status") return logDirectory.status();
   if (message.action === "settings.get") return settingsSummary();
   if (message.action === "settings.save") {
     return updateSettings(message.settings && typeof message.settings === "object" ? message.settings : {});
@@ -1002,8 +1149,9 @@ async function handle(message, sender) {
   }
   if (message.action === "taskflow.quickWorkflow") {
     let logRunId = null;
+    const workflowName = message.workflow !== null && typeof message.workflow === "object" && typeof message.workflow.workflowName === "string" ? message.workflow.workflowName : "Quick Workflow";
     try {
-      logRunId = await quickWorkflowLog.start();
+      logRunId = await quickWorkflowLog.start(workflowName);
     } catch {
     }
     const appendLog = async (event) => {
@@ -1047,6 +1195,8 @@ async function handle(message, sender) {
         });
       }
       throw reason;
+    } finally {
+      await quickWorkflowLog.flushHistory();
     }
   }
   const settings = await loadSettings();

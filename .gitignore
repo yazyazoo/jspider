@@ -3,6 +3,7 @@ docs/superpowers/
 node_modules/
 release/
 coverage/
+log/
 YMM/
 HANDOFF.md
 config.local.json

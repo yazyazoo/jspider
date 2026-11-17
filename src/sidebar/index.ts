@@ -52,6 +52,8 @@ import {
   initializeQuickWorkflowLog,
 } from './quick-workflow-log';
 import type { QuickWorkflowLogDocument } from '../background/quick-workflow-log';
+import { initializeLogDirectorySettings } from './log-directory-settings';
+import type { LogDirectoryStatus } from '../background/log-directory';
 
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
@@ -80,6 +82,18 @@ initializeDismissiblePopover(
   document,
 );
 const quickLogButton = element<HTMLButtonElement>('quick-log-button');
+const logDirectorySettings = initializeLogDirectorySettings({
+  state: element('log-directory-state'),
+  chooseButton: element<HTMLButtonElement>('log-directory-choose'),
+}, {
+  async loadStatus() {
+    try { return await background<LogDirectoryStatus>('taskflow.logDirectory.status'); }
+    catch { return { configured: false, name: null, permission: 'missing' }; }
+  },
+  async openPicker() {
+    await chrome.tabs.create({ url: chrome.runtime.getURL('log-directory.html') });
+  },
+});
 initializeDismissiblePopover(
   quickLogButton,
   element('quick-log-panel'),
@@ -104,6 +118,10 @@ const refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
 quickLogButton.addEventListener('click', refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes['jspider.quickWorkflowLog']) refreshQuickLog();
+  if (areaName === 'local'
+    && (changes['jspider.logDirectoryName'] || changes['jspider.logDirectoryRevision'])) {
+    void logDirectorySettings.refresh();
+  }
 });
 initializeFullWebUiToggle({
   home: element('home-view'),
@@ -419,6 +437,7 @@ async function readSnapshot(action = 'snapshot'): Promise<void> {
 
 async function loadSettingsSummary(): Promise<void> {
   settings = await background<SettingsSummary>('settings.get');
+  await logDirectorySettings.refresh();
   fillSettingsFields(settings, settingsFields());
   element('settings-state').textContent = `TaskFlow: ${settings.taskflowConfigured ? 'configurato' : 'token mancante'} · TMDB: ${settings.tmdbConfigured ? 'configurato' : 'token mancante'} · OMDb: ${settings.omdbConfigured ? 'configurato' : 'API key mancante'} · MDBList: ${settings.mdblistConfigured ? 'configurato' : 'API key mancante'} · Emby: ${settings.embyConfigured ? 'configurato' : 'config locale mancante'} · backend JD in produzione non verificato per commit.`;
   renderCreateState();

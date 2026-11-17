@@ -22,6 +22,7 @@ crea il file direttamente accanto al `manifest.json` estratto.
 | `mdblistApiKey` | API key MDBList usata per leggere rating e premi |
 | `embyBaseUrl` | Origine HTTPS del server Emby |
 | `embyToken` | Token API Emby inviato solamente nell’header `X-Emby-Token` |
+| `_logDirectory` | Segnaposto informativo: scegli la cartella dalle impostazioni JSpider; Chromium non accetta un percorso filesystem da questo file JSON |
 
 I valori TaskFlow, TMDB, OMDb e MDBList possono essere salvati anche dal pannello
 Impostazioni di JSpider. I valori espliciti in `chrome.storage.local`, compresi
@@ -46,3 +47,17 @@ solo dopo la scelta esplicita del fallback.
   durante il transito.
 
 Non sostituire mai i segnaposto di `config.example.json` con credenziali reali.
+
+## Cartella log Quick Workflow
+
+Usa **Impostazioni → Scegli cartella log** per autorizzare una cartella locale.
+Poiché la sidebar è incorporata nel sito sorgente, JSpider apre una piccola
+pagina dell’estensione in primo piano dalla quale Chromium può mostrare in modo
+sicuro il selettore. Seleziona la cartella `log` ignorata nella repository.
+
+Ogni Quick Workflow crea un file JSON leggibile con data e ora locale all’inizio
+del nome, seguite dal nome workflow. Ordinando la cartella per nome si ottiene
+quindi l’ordine cronologico. JSpider aggiorna lo stesso file dopo ogni richiesta, risposta o
+errore: la cartella diventa quindi anche lo storico dei workflow. Se Chromium
+dimentica il permesso, seleziona nuovamente la cartella. Svuotare l’ultimo log
+dalla sidebar non elimina i file storici.

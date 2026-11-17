@@ -58,18 +58,7 @@ describe('background Quick Workflow log actions', () => {
       tmdbCredential: '', omdbApiKey: '', mdblistApiKey: '',
     };
     failLogSet = true;
-    vi.mocked(fetch).mockImplementation(async (request) => {
-      const url = request instanceof Request ? request.url : request.toString();
-      if (url.endsWith('/api/v1/integrations')) {
-        return json([{ id: '2510505', type: 'jdownloader', enabled: true }]);
-      }
-      if (url.endsWith('/submission')) {
-        return json([{ name: 'Film', jd_id: 'jd', taskflow_id: '1234567' }]);
-      }
-      if (url.endsWith('/start')) return json({ id: '7654321', status: 'waiting_packages' });
-      if (url.endsWith('/api/v1/workflows')) return json({ id: '7654321', status: 'created' }, 201);
-      return json({}, 404);
-    });
+    configureSuccessfulTaskFlow();
 
     await expect(send('taskflow.quickWorkflow', {
       variants: [{ key: '4k', packageName: 'Film', password: '', links: ['https://terabytez.org/a/film.rar'] }],
@@ -84,7 +73,44 @@ describe('background Quick Workflow log actions', () => {
       data: { createdWorkflow: { id: '7654321' }, startedWorkflow: { status: 'waiting_packages' } },
     });
   });
+
+  it('names the persisted log after the Quick Workflow', async () => {
+    values['jspider.settings'] = {
+      taskflowBaseUrl: 'https://taskflow.example', taskflowToken: 'token',
+      tmdbCredential: '', omdbApiKey: '', mdblistApiKey: '',
+    };
+    configureSuccessfulTaskFlow();
+
+    await send('taskflow.quickWorkflow', {
+      variants: [{ key: '4k', packageName: 'Film', password: '', links: ['https://terabytez.org/a/film.rar'] }],
+      hosts: ['terabytez.org'], autodownload: true,
+      workflow: {
+        workflowName: 'Film', preset: 'movie-standard',
+        metadata: { mode: 'validated', id: 42, mediaKind: 'movie' },
+        password: '', cleanupOnSuccess: true,
+      },
+    });
+
+    expect(values['jspider.quickWorkflowLog']).toMatchObject({
+      workflowName: 'Film', fileName: expect.stringMatching(/^\d{4}-\d{2}-\d{2}_.*_Film\.json$/),
+    });
+  });
 });
+
+function configureSuccessfulTaskFlow(): void {
+  vi.mocked(fetch).mockImplementation(async (request) => {
+    const url = request instanceof Request ? request.url : request.toString();
+    if (url.endsWith('/api/v1/integrations')) {
+      return json([{ id: '2510505', type: 'jdownloader', enabled: true }]);
+    }
+    if (url.endsWith('/submission')) {
+      return json([{ name: 'Film', jd_id: 'jd', taskflow_id: '1234567' }]);
+    }
+    if (url.endsWith('/start')) return json({ id: '7654321', status: 'waiting_packages' });
+    if (url.endsWith('/api/v1/workflows')) return json({ id: '7654321', status: 'created' }, 201);
+    return json({}, 404);
+  });
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

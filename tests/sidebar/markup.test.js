@@ -42,6 +42,9 @@ describe('sidebar fallback action', () => {
     expect(actions?.querySelector('#quick-log-button')?.textContent).toBe('Log JSON');
     expect(actions?.querySelector('#refresh')).not.toBeNull();
     expect(document.querySelector('#settings-panel form#settings-form')).not.toBeNull();
+    expect(document.querySelector('#settings-panel #log-directory-state')).not.toBeNull();
+    expect(document.querySelector('#settings-panel #log-directory-choose')?.textContent)
+      .toBe('Scegli cartella log');
     expect(document.querySelector('#quick-log-panel #quick-log-entries')).not.toBeNull();
     expect(document.querySelector('#quick-log-copy')?.textContent).toBe('Copia tutto');
     expect(document.querySelector('#quick-log-clear')?.textContent).toBe('Svuota');

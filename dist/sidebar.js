@@ -867,6 +867,33 @@ function initializeQuickWorkflowLog(view, dependencies) {
   };
 }
 
+// src/sidebar/log-directory-settings.ts
+function renderLogDirectoryStatus(view, status2) {
+  if (!status2.configured || !status2.name) {
+    view.state.textContent = "Nessuna cartella log configurata.";
+    view.chooseButton.textContent = "Scegli cartella log";
+    return;
+  }
+  view.chooseButton.textContent = "Cambia cartella";
+  view.state.textContent = status2.permission === "granted" ? `${status2.name} \xB7 scrittura autorizzata` : `${status2.name} \xB7 autorizzazione da rinnovare`;
+}
+function initializeLogDirectorySettings(view, dependencies) {
+  const refresh = async () => {
+    renderLogDirectoryStatus(view, await dependencies.loadStatus());
+  };
+  const choose = () => {
+    view.state.textContent = "Completa la scelta nella nuova scheda JSpider.";
+    void dependencies.openPicker();
+  };
+  view.chooseButton.addEventListener("click", choose);
+  return {
+    refresh,
+    dispose() {
+      view.chooseButton.removeEventListener("click", choose);
+    }
+  };
+}
+
 // src/sidebar/index.ts
 var element = (id) => document.getElementById(id);
 var input = (id) => element(id);
@@ -892,6 +919,21 @@ initializeDismissiblePopover(
   document
 );
 var quickLogButton = element("quick-log-button");
+var logDirectorySettings = initializeLogDirectorySettings({
+  state: element("log-directory-state"),
+  chooseButton: element("log-directory-choose")
+}, {
+  async loadStatus() {
+    try {
+      return await background("taskflow.logDirectory.status");
+    } catch {
+      return { configured: false, name: null, permission: "missing" };
+    }
+  },
+  async openPicker() {
+    await chrome.tabs.create({ url: chrome.runtime.getURL("log-directory.html") });
+  }
+});
 initializeDismissiblePopover(
   quickLogButton,
   element("quick-log-panel"),
@@ -917,6 +959,9 @@ var refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
 quickLogButton.addEventListener("click", refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes["jspider.quickWorkflowLog"]) refreshQuickLog();
+  if (areaName === "local" && (changes["jspider.logDirectoryName"] || changes["jspider.logDirectoryRevision"])) {
+    void logDirectorySettings.refresh();
+  }
 });
 initializeFullWebUiToggle({
   home: element("home-view"),
@@ -1209,6 +1254,7 @@ async function readSnapshot(action = "snapshot") {
 }
 async function loadSettingsSummary() {
   settings = await background("settings.get");
+  await logDirectorySettings.refresh();
   fillSettingsFields(settings, settingsFields());
   element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 MDBList: ${settings.mdblistConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"} \xB7 backend JD in produzione non verificato per commit.`;
   renderCreateState();

@@ -22,14 +22,19 @@ import {
   QuickWorkflowLogStore,
   type QuickWorkflowLogStorage,
 } from './quick-workflow-log';
+import {
+  LogDirectoryRepository,
+  QuickWorkflowFileWriter,
+} from './log-directory';
 
 type Message = { target?: string; action?: string; [key: string]: unknown };
 
+const logDirectory = new LogDirectoryRepository();
 const quickWorkflowLog = new QuickWorkflowLogStore({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items),
   remove: (key) => chrome.storage.local.remove(key),
-} satisfies QuickWorkflowLogStorage);
+} satisfies QuickWorkflowLogStorage, undefined, undefined, new QuickWorkflowFileWriter(logDirectory));
 
 chrome.action.onClicked.addListener((tab) => {
   void handleActionClick(tab, {
@@ -70,6 +75,7 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
     || message.action === 'taskflow.quickWorkflowLog.clear') {
     return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
+  if (message.action === 'taskflow.logDirectory.status') return logDirectory.status();
   if (message.action === 'settings.get') return settingsSummary();
   if (message.action === 'settings.save') {
     return updateSettings(message.settings && typeof message.settings === 'object'
@@ -87,7 +93,11 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
   }
   if (message.action === 'taskflow.quickWorkflow') {
     let logRunId: string | null = null;
-    try { logRunId = await quickWorkflowLog.start(); }
+    const workflowName = message.workflow !== null && typeof message.workflow === 'object'
+      && typeof (message.workflow as Record<string, unknown>).workflowName === 'string'
+      ? (message.workflow as Record<string, unknown>).workflowName as string
+      : 'Quick Workflow';
+    try { logRunId = await quickWorkflowLog.start(workflowName); }
     catch { /* Diagnostics must never interrupt Quick Workflow. */ }
     const appendLog = async (event: Parameters<typeof quickWorkflowLog.append>[0]) => {
       if (!logRunId) return;
@@ -127,6 +137,8 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
         });
       }
       throw reason;
+    } finally {
+      await quickWorkflowLog.flushHistory();
     }
   }
   const settings = await loadSettings();

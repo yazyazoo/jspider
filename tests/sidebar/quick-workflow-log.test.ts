@@ -8,6 +8,8 @@ import {
 
 const documentLog = {
   runId: 'run-1',
+  workflowName: 'Film',
+  fileName: 'Film_2026-11-17_17-00-00-000.json',
   startedAt: '2026-11-17T16:00:00.000Z',
   updatedAt: '2026-11-17T16:00:02.000Z',
   entries: [

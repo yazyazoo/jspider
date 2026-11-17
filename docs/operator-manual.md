@@ -149,6 +149,10 @@ locks the two mode controls to prevent accidentally mixing the paths.
 
 ### Quick Workflow
 
+Before the first run, open **Settings**, choose the Quick Workflow log folder,
+and select the repository's local `log` directory in the JSpider authorization
+page. Every run is then mirrored progressively to its own JSON history file.
+
 Quick Workflow is the default simplified path.
 
 1. Select a **Preset TaskFlow**. Its task sequence is displayed below the

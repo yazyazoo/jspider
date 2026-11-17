@@ -151,6 +151,11 @@ blocca le due modalità per impedire di mescolare accidentalmente i percorsi.
 
 ### Quick Workflow
 
+Prima della prima esecuzione apri **Impostazioni**, scegli la cartella log Quick
+Workflow e seleziona la directory locale `log` della repository nella pagina di
+autorizzazione JSpider. Ogni esecuzione viene quindi copiata progressivamente
+nel proprio file JSON storico.
+
 Quick Workflow è il percorso semplificato predefinito.
 
 1. Seleziona un **Preset TaskFlow**. Sotto il selettore appare la sequenza task.
