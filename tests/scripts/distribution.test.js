@@ -37,6 +37,11 @@ describe('local distribution configuration', () => {
     await expect(exists(join(root, 'dist', 'config.local.json'))).resolves.toBe(false);
   });
 
+  it('publishes an MDBList placeholder without publishing a local key', async () => {
+    const example = JSON.parse(await readFile(new URL('../../config.example.json', import.meta.url), 'utf8'));
+    expect(example.mdblistApiKey).toBe('INSERISCI_API_KEY_MDBLIST');
+  });
+
   it('copies an existing local configuration byte for byte', async () => {
     const root = await temporaryRoot();
     const contents = '{\r\n  "token": "private-value"\r\n}\r\n';

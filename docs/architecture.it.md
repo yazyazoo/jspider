@@ -11,6 +11,7 @@ Pagina supportata
   → sidebar JSpider
   → service worker in background
       → TMDB
+      → MDBList (rating e premi in sola lettura)
       → Emby (sola lettura)
       → API TaskFlow
           → integrazione JDownloader configurata
@@ -33,13 +34,16 @@ Gestisce inoltre l’overlay portabile nella pagina usato dai browser Chromium.
 
 La sidebar non si collega mai direttamente a JD e non conserva il token Emby.
 Le chiamate API sensibili vengono inoltrate al service worker dell’estensione.
+Le schede mostrano subito il voto nativo TMDB, poi aggiungono in modo asincrono
+i rating e i premi MDBList disponibili senza bloccare la validazione.
 
 ## Livelli background e dominio
 
 `src/background/` gestisce impostazioni e client HTTP. TaskFlow usa lo stesso
 token Bearer amministrativo della WebUI. TMDB accetta un token di lettura o una
 chiave v3. Emby invia il token solamente come `X-Emby-Token` ed esegue richieste
-GET.
+GET. MDBList viene interrogato per ID TMDB e tipo di contenuto; dati mancanti o
+ricerche fallite vengono omessi.
 
 `src/domain/` contiene validazione pura, proposta delle versioni, analisi
 ordinata delle submission, costruzione dei payload workflow e risoluzione della

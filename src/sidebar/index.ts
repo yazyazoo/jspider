@@ -21,6 +21,7 @@ import {
   clearTmdbView,
   initializeOverlayWidthControl,
   LatestResultGate,
+  loadCandidateEnrichments,
   runSidebarStartup,
 } from './controller';
 import { applyThankReplacements, reconcileSelection } from './state';
@@ -45,6 +46,7 @@ import { initializeFullWebUiToggle, type FullWebUiRuntime } from './full-webui';
 import { resolvePresetCleanup, type CleanupPreset } from './preset-cleanup';
 import type { EmbyLookupInput, EmbyPresenceResult } from '../domain/emby';
 import { renderEmbyStatus } from './emby-status';
+import type { MediaRatings } from '../domain/media-ratings';
 
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
@@ -56,6 +58,7 @@ let snapshot: PageSnapshot | null = null;
 let selectedKeys: string[] = [];
 let explicitlyAdjusted = false;
 let candidates: TmdbCandidate[] = [];
+let candidateRatings = new Map<number, MediaRatings>();
 let metadata: WorkflowMetadata | null = null;
 let catalog: Catalog | null = null;
 let settings: SettingsSummary | null = null;
@@ -63,6 +66,7 @@ let createMode: CreateModeState = initialCreateModeState();
 let manualPassword: string | null = null;
 const tmdbResultGate = new LatestResultGate();
 const embyResultGate = new LatestResultGate();
+const ratingsResultGate = new LatestResultGate();
 renderEmbyStatus(element('emby-status'), { state: 'idle' });
 initializeTooltips(document);
 initializeDismissiblePopover(
@@ -109,6 +113,7 @@ function settingsFields(): SettingsFields {
     taskflowToken: input('taskflow-token'),
     tmdbCredential: input('tmdb-token'),
     omdbApiKey: input('omdb-api-key'),
+    mdblistApiKey: input('mdblist-api-key'),
   };
 }
 
@@ -208,7 +213,19 @@ function renderCandidates(): void {
         });
       },
     },
+    candidateRatings,
   );
+}
+
+async function enrichCandidateRatings(current: readonly TmdbCandidate[]): Promise<void> {
+  const result = await ratingsResultGate.run(() => loadCandidateEnrichments(
+    current,
+    Boolean(settings?.mdblistConfigured),
+    (lookupInput) => background('mdblist.lookup', { input: lookupInput }),
+  ));
+  if (!result) return;
+  candidateRatings = result;
+  renderCandidates();
 }
 
 async function checkEmby(input: EmbyLookupInput): Promise<void> {
@@ -238,7 +255,9 @@ async function checkEmby(input: EmbyLookupInput): Promise<void> {
 }
 
 function applyTmdbResult(result: { method: string; candidates: TmdbCandidate[] }): void {
+  ratingsResultGate.invalidate();
   candidates = result.candidates;
+  candidateRatings = new Map();
   metadata = null;
   renderCandidates();
   renderCreateState();
@@ -247,12 +266,15 @@ function applyTmdbResult(result: { method: string; candidates: TmdbCandidate[] }
       ? 'Corrispondenza tramite IMDb trovata · conferma manualmente il titolo.'
       : `${candidates.length} candidati trovati · valida manualmente.`
     : 'Nessun candidato trovato. Modifica titolo o anno e ripeti la ricerca.';
+  void enrichCandidateRatings(candidates).catch(() => undefined);
 }
 
 function clearTmdbSelection(): void {
   embyResultGate.invalidate();
+  ratingsResultGate.invalidate();
   metadata = null;
   candidates = [];
+  candidateRatings = new Map();
   clearTmdbView({
     results: element('results'),
     validation: element('validation-state'),
@@ -367,7 +389,7 @@ async function readSnapshot(action = 'snapshot'): Promise<void> {
 async function loadSettingsSummary(): Promise<void> {
   settings = await background<SettingsSummary>('settings.get');
   fillSettingsFields(settings, settingsFields());
-  element('settings-state').textContent = `TaskFlow: ${settings.taskflowConfigured ? 'configurato' : 'token mancante'} · TMDB: ${settings.tmdbConfigured ? 'configurato' : 'token mancante'} · OMDb: ${settings.omdbConfigured ? 'configurato' : 'API key mancante'} · Emby: ${settings.embyConfigured ? 'configurato' : 'config locale mancante'} · backend JD in produzione non verificato per commit.`;
+  element('settings-state').textContent = `TaskFlow: ${settings.taskflowConfigured ? 'configurato' : 'token mancante'} · TMDB: ${settings.tmdbConfigured ? 'configurato' : 'token mancante'} · OMDb: ${settings.omdbConfigured ? 'configurato' : 'API key mancante'} · MDBList: ${settings.mdblistConfigured ? 'configurato' : 'API key mancante'} · Emby: ${settings.embyConfigured ? 'configurato' : 'config locale mancante'} · backend JD in produzione non verificato per commit.`;
   renderCreateState();
 }
 

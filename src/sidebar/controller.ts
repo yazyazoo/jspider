@@ -1,9 +1,31 @@
 import type { PageSnapshot } from '../domain/models';
 import type { CreateModeState } from '../domain/create-mode';
 import type { TmdbSearchInput, TmdbSearchResult } from '../domain/tmdb';
+import type { MediaRatings, MdbListLookupInput } from '../domain/media-ratings';
 import { shouldAutoSearchTmdb } from './state';
 
 export type TmdbSearch = (input: TmdbSearchInput) => Promise<TmdbSearchResult>;
+export type MediaRatingsLookup = (input: MdbListLookupInput) => Promise<MediaRatings>;
+
+export async function loadCandidateEnrichments(
+  candidates: readonly { id: number; mediaKind: 'movie' | 'tv' }[],
+  configured: boolean,
+  lookup: MediaRatingsLookup,
+): Promise<Map<number, MediaRatings>> {
+  const enrichments = new Map<number, MediaRatings>();
+  if (!configured) return enrichments;
+  await Promise.all(candidates.map(async (candidate) => {
+    try {
+      enrichments.set(candidate.id, await lookup({
+        tmdbId: candidate.id,
+        mediaKind: candidate.mediaKind,
+      }));
+    } catch {
+      // Ratings are optional: one failed lookup must not hide the TMDB candidate.
+    }
+  }));
+  return enrichments;
+}
 
 export function applyCreateModeView(
   state: CreateModeState,

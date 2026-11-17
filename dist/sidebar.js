@@ -206,6 +206,20 @@ function shouldAutoSearchTmdb(configured, mediaKind) {
 }
 
 // src/sidebar/controller.ts
+async function loadCandidateEnrichments(candidates2, configured, lookup) {
+  const enrichments = /* @__PURE__ */ new Map();
+  if (!configured) return enrichments;
+  await Promise.all(candidates2.map(async (candidate) => {
+    try {
+      enrichments.set(candidate.id, await lookup({
+        tmdbId: candidate.id,
+        mediaKind: candidate.mediaKind
+      }));
+    } catch {
+    }
+  }));
+  return enrichments;
+}
 function applyCreateModeView(state, view) {
   const quick = state.selected === "quick";
   view.quickPanel.hidden = !quick;
@@ -478,7 +492,76 @@ function externalButton(document2, href, label) {
   link.textContent = label;
   return link;
 }
-function renderCandidateCards(container, candidates2, validatedId, handlers) {
+var ratingIcons = {
+  imdb: "IMDb",
+  tomatoes: "\u{1F345}",
+  popcorn: "\u{1F37F}",
+  metacritic: "M",
+  metacriticuser: "MU",
+  letterboxd: "LB",
+  trakt: "Trakt",
+  rogerebert: "Ebert",
+  myanimelist: "MAL"
+};
+function ratingLink(document2, source, iconText, value, href, title) {
+  const link = document2.createElement("a");
+  link.href = href;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.className = `rating-badge rating-${source}`;
+  link.title = title;
+  link.setAttribute("aria-label", title);
+  const icon = document2.createElement("span");
+  icon.className = "rating-icon";
+  icon.textContent = iconText;
+  icon.setAttribute("aria-hidden", "true");
+  const score = document2.createElement("span");
+  score.className = "rating-value";
+  score.textContent = value;
+  link.append(icon, score);
+  return link;
+}
+function renderRatings(document2, candidate, enrichment) {
+  const container = document2.createElement("div");
+  container.className = "candidate-ratings";
+  if (candidate.voteAverage !== null && candidate.voteCount > 0) {
+    const value = candidate.voteAverage.toFixed(1);
+    const votes = new Intl.NumberFormat("it-IT").format(candidate.voteCount);
+    container.append(ratingLink(
+      document2,
+      "tmdb",
+      "TMDB",
+      value,
+      candidate.url,
+      `TMDB: ${value} \xB7 ${votes} voti`
+    ));
+  }
+  for (const rating of enrichment?.ratings ?? []) {
+    const votes = rating.votes === null ? "" : ` \xB7 ${new Intl.NumberFormat("it-IT").format(rating.votes)} voti`;
+    container.append(ratingLink(
+      document2,
+      rating.source,
+      ratingIcons[rating.source],
+      rating.value,
+      rating.url,
+      `${rating.label}: ${rating.value}${votes}`
+    ));
+  }
+  if (enrichment?.awards) {
+    const awards = ratingLink(
+      document2,
+      "awards",
+      "\u{1F3C6}",
+      enrichment.awards.text,
+      enrichment.awards.url,
+      enrichment.awards.text
+    );
+    awards.classList.add("rating-awards");
+    container.append(awards);
+  }
+  return container.childElementCount ? container : null;
+}
+function renderCandidateCards(container, candidates2, validatedId, handlers, ratingsById = /* @__PURE__ */ new Map()) {
   const document2 = container.ownerDocument;
   container.replaceChildren();
   for (const candidate of candidates2) {
@@ -520,6 +603,8 @@ function renderCandidateCards(container, candidates2, validatedId, handlers) {
       fallback
     );
     body.append(title, overview, actions);
+    const ratings = renderRatings(document2, candidate, ratingsById.get(candidate.id));
+    if (ratings) body.append(ratings);
     card.append(poster, body);
     container.append(card);
   }
@@ -544,13 +629,15 @@ function fillSettingsFields(settings2, fields) {
   fields.taskflowToken.value = settings2.taskflowToken;
   fields.tmdbCredential.value = settings2.tmdbCredential;
   fields.omdbApiKey.value = settings2.omdbApiKey;
+  fields.mdblistApiKey.value = settings2.mdblistApiKey;
 }
 function readSettingsFields(fields) {
   return {
     taskflowBaseUrl: fields.taskflowBaseUrl.value,
     taskflowToken: fields.taskflowToken.value,
     tmdbCredential: fields.tmdbCredential.value,
-    omdbApiKey: fields.omdbApiKey.value
+    omdbApiKey: fields.omdbApiKey.value,
+    mdblistApiKey: fields.mdblistApiKey.value
   };
 }
 
@@ -685,6 +772,7 @@ var snapshot = null;
 var selectedKeys = [];
 var explicitlyAdjusted = false;
 var candidates = [];
+var candidateRatings = /* @__PURE__ */ new Map();
 var metadata = null;
 var catalog = null;
 var settings = null;
@@ -692,6 +780,7 @@ var createMode = initialCreateModeState();
 var manualPassword = null;
 var tmdbResultGate = new LatestResultGate();
 var embyResultGate = new LatestResultGate();
+var ratingsResultGate = new LatestResultGate();
 renderEmbyStatus(element("emby-status"), { state: "idle" });
 initializeTooltips(document);
 initializeDismissiblePopover(
@@ -733,7 +822,8 @@ function settingsFields() {
     taskflowBaseUrl: input("taskflow-url"),
     taskflowToken: input("taskflow-token"),
     tmdbCredential: input("tmdb-token"),
-    omdbApiKey: input("omdb-api-key")
+    omdbApiKey: input("omdb-api-key"),
+    mdblistApiKey: input("mdblist-api-key")
   };
 }
 function selectedVariants() {
@@ -830,8 +920,19 @@ function renderCandidates() {
           mediaKind: candidate.mediaKind
         });
       }
-    }
+    },
+    candidateRatings
   );
+}
+async function enrichCandidateRatings(current) {
+  const result = await ratingsResultGate.run(() => loadCandidateEnrichments(
+    current,
+    Boolean(settings?.mdblistConfigured),
+    (lookupInput) => background("mdblist.lookup", { input: lookupInput })
+  ));
+  if (!result) return;
+  candidateRatings = result;
+  renderCandidates();
 }
 async function checkEmby(input2) {
   embyResultGate.invalidate();
@@ -860,16 +961,21 @@ async function checkEmby(input2) {
   }
 }
 function applyTmdbResult(result) {
+  ratingsResultGate.invalidate();
   candidates = result.candidates;
+  candidateRatings = /* @__PURE__ */ new Map();
   metadata = null;
   renderCandidates();
   renderCreateState();
   element("search-status").textContent = candidates.length ? result.method === "imdb" ? "Corrispondenza tramite IMDb trovata \xB7 conferma manualmente il titolo." : `${candidates.length} candidati trovati \xB7 valida manualmente.` : "Nessun candidato trovato. Modifica titolo o anno e ripeti la ricerca.";
+  void enrichCandidateRatings(candidates).catch(() => void 0);
 }
 function clearTmdbSelection() {
   embyResultGate.invalidate();
+  ratingsResultGate.invalidate();
   metadata = null;
   candidates = [];
+  candidateRatings = /* @__PURE__ */ new Map();
   clearTmdbView({
     results: element("results"),
     validation: element("validation-state")
@@ -974,7 +1080,7 @@ async function readSnapshot(action = "snapshot") {
 async function loadSettingsSummary() {
   settings = await background("settings.get");
   fillSettingsFields(settings, settingsFields());
-  element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"} \xB7 backend JD in produzione non verificato per commit.`;
+  element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 MDBList: ${settings.mdblistConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"} \xB7 backend JD in produzione non verificato per commit.`;
   renderCreateState();
 }
 async function loadCatalog() {

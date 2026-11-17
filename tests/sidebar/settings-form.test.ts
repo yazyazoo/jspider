@@ -12,12 +12,14 @@ function fields(): SettingsFields {
     <input id="taskflow">
     <input id="tmdb">
     <input id="omdb">
+    <input id="mdblist">
   `;
   return {
     taskflowBaseUrl: document.querySelector<HTMLInputElement>('#url')!,
     taskflowToken: document.querySelector<HTMLInputElement>('#taskflow')!,
     tmdbCredential: document.querySelector<HTMLInputElement>('#tmdb')!,
     omdbApiKey: document.querySelector<HTMLInputElement>('#omdb')!,
+    mdblistApiKey: document.querySelector<HTMLInputElement>('#mdblist')!,
   };
 }
 
@@ -30,6 +32,7 @@ describe('visible settings form', () => {
       taskflowToken: 'taskflow-secret',
       tmdbCredential: 'tmdb-secret',
       omdbApiKey: 'omdb-secret',
+      mdblistApiKey: 'mdblist-secret',
     }, view);
 
     expect(readSettingsFields(view)).toEqual({
@@ -37,6 +40,7 @@ describe('visible settings form', () => {
       taskflowToken: 'taskflow-secret',
       tmdbCredential: 'tmdb-secret',
       omdbApiKey: 'omdb-secret',
+      mdblistApiKey: 'mdblist-secret',
     });
   });
 
@@ -46,12 +50,14 @@ describe('visible settings form', () => {
     view.taskflowToken.value = '';
     view.tmdbCredential.value = '';
     view.omdbApiKey.value = '';
+    view.mdblistApiKey.value = '';
 
     expect(readSettingsFields(view)).toEqual({
       taskflowBaseUrl: 'https://taskflow.example',
       taskflowToken: '',
       tmdbCredential: '',
       omdbApiKey: '',
+      mdblistApiKey: '',
     });
   });
 });

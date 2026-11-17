@@ -51,6 +51,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'local-taskflow',
       tmdbCredential: 'local-tmdb',
       omdbApiKey: 'local-omdb',
+      mdblistApiKey: 'local-mdblist',
     };
 
     await expect(loadSettings()).resolves.toEqual({
@@ -58,6 +59,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'local-taskflow',
       tmdbCredential: 'local-tmdb',
       omdbApiKey: 'local-omdb',
+      mdblistApiKey: 'local-mdblist',
     });
     expect(fetch).toHaveBeenCalledWith(
       'chrome-extension://jspider/config.local.json',
@@ -71,10 +73,12 @@ describe('visible extension settings', () => {
       taskflowToken: 'local-taskflow',
       tmdbCredential: 'local-tmdb',
       omdbApiKey: 'local-omdb',
+      mdblistApiKey: 'local-mdblist',
     };
     storage[STORAGE_KEY] = {
       taskflowToken: '',
       tmdbCredential: 'saved-tmdb',
+      mdblistApiKey: 'saved-mdblist',
     };
 
     await expect(loadSettings()).resolves.toEqual({
@@ -82,6 +86,7 @@ describe('visible extension settings', () => {
       taskflowToken: '',
       tmdbCredential: 'saved-tmdb',
       omdbApiKey: 'local-omdb',
+      mdblistApiKey: 'saved-mdblist',
     });
   });
 
@@ -93,6 +98,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'saved-taskflow',
       tmdbCredential: 'saved-tmdb',
       omdbApiKey: 'saved-omdb',
+      mdblistApiKey: 'saved-mdblist',
     };
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -101,6 +107,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'saved-taskflow',
       tmdbCredential: 'saved-tmdb',
       omdbApiKey: 'saved-omdb',
+      mdblistApiKey: 'saved-mdblist',
     });
     expect(warning).toHaveBeenCalledWith(
       'JSpider: config.local.json ignorato.',
@@ -120,6 +127,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'taskflow-secret',
       tmdbCredential: 'tmdb-secret',
       omdbApiKey: '',
+      mdblistApiKey: '',
     });
   });
 
@@ -133,6 +141,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'taskflow-secret',
       tmdbCredential: 'tmdb-secret',
       omdbApiKey: 'omdb-secret',
+      mdblistApiKey: 'mdblist-secret',
     };
 
     await expect(settingsSummary()).resolves.toEqual({
@@ -140,10 +149,12 @@ describe('visible extension settings', () => {
       taskflowToken: 'taskflow-secret',
       tmdbCredential: 'tmdb-secret',
       omdbApiKey: 'omdb-secret',
+      mdblistApiKey: 'mdblist-secret',
       embyBaseUrl: 'http://emby.example:8096',
       taskflowConfigured: true,
       tmdbConfigured: true,
       omdbConfigured: true,
+      mdblistConfigured: true,
       embyConfigured: true,
     });
   });
@@ -170,6 +181,7 @@ describe('visible extension settings', () => {
       taskflowToken: 'old-taskflow',
       tmdbCredential: 'old-tmdb',
       omdbApiKey: 'old-omdb',
+      mdblistApiKey: 'old-mdblist',
     };
 
     const result = await updateSettings({
@@ -177,6 +189,7 @@ describe('visible extension settings', () => {
       taskflowToken: '',
       tmdbCredential: '',
       omdbApiKey: 'new-omdb',
+      mdblistApiKey: 'new-mdblist',
     });
 
     expect(storage[STORAGE_KEY]).toEqual({
@@ -184,16 +197,19 @@ describe('visible extension settings', () => {
       taskflowToken: '',
       tmdbCredential: '',
       omdbApiKey: 'new-omdb',
+      mdblistApiKey: 'new-mdblist',
     });
     expect(result).toEqual({
       taskflowBaseUrl: 'https://taskflow.example',
       taskflowToken: '',
       tmdbCredential: '',
       omdbApiKey: 'new-omdb',
+      mdblistApiKey: 'new-mdblist',
       embyBaseUrl: '',
       taskflowConfigured: false,
       tmdbConfigured: false,
       omdbConfigured: true,
+      mdblistConfigured: true,
       embyConfigured: false,
     });
   });

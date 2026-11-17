@@ -5,6 +5,7 @@ export interface StoredSettings {
   taskflowToken: string;
   tmdbCredential: string;
   omdbApiKey: string;
+  mdblistApiKey: string;
 }
 
 export interface SettingsSummary {
@@ -12,10 +13,12 @@ export interface SettingsSummary {
   taskflowToken: string;
   tmdbCredential: string;
   omdbApiKey: string;
+  mdblistApiKey: string;
   embyBaseUrl: string;
   taskflowConfigured: boolean;
   tmdbConfigured: boolean;
   omdbConfigured: boolean;
+  mdblistConfigured: boolean;
   embyConfigured: boolean;
 }
 
@@ -32,6 +35,7 @@ const SETTINGS_KEYS = [
   'taskflowToken',
   'tmdbCredential',
   'omdbApiKey',
+  'mdblistApiKey',
 ] as const satisfies readonly (keyof StoredSettings)[];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,6 +83,7 @@ function normalizeStored(value: unknown): StoredSettings {
     taskflowToken: typeof raw.taskflowToken === 'string' ? raw.taskflowToken : '',
     tmdbCredential: typeof raw.tmdbCredential === 'string' ? raw.tmdbCredential : '',
     omdbApiKey: typeof raw.omdbApiKey === 'string' ? raw.omdbApiKey : '',
+    mdblistApiKey: typeof raw.mdblistApiKey === 'string' ? raw.mdblistApiKey : '',
   };
 }
 
@@ -108,10 +113,12 @@ export async function settingsSummary(): Promise<SettingsSummary> {
     taskflowToken: settings.taskflowToken,
     tmdbCredential: settings.tmdbCredential,
     omdbApiKey: settings.omdbApiKey,
+    mdblistApiKey: settings.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
     taskflowConfigured: Boolean(settings.taskflowToken),
     tmdbConfigured: Boolean(settings.tmdbCredential),
     omdbConfigured: Boolean(settings.omdbApiKey),
+    mdblistConfigured: Boolean(settings.mdblistApiKey),
     embyConfigured: Boolean(emby.baseUrl && emby.token),
   };
 }
@@ -124,6 +131,7 @@ export async function updateSettings(patch: Record<string, unknown>): Promise<Se
     taskflowToken: typeof patch.taskflowToken === 'string' ? patch.taskflowToken.trim() : current.taskflowToken,
     tmdbCredential: typeof patch.tmdbCredential === 'string' ? patch.tmdbCredential.trim() : current.tmdbCredential,
     omdbApiKey: typeof patch.omdbApiKey === 'string' ? patch.omdbApiKey.trim() : current.omdbApiKey,
+    mdblistApiKey: typeof patch.mdblistApiKey === 'string' ? patch.mdblistApiKey.trim() : current.mdblistApiKey,
   };
   await chrome.storage.local.set({ [STORAGE_KEY]: next });
   const emby = await loadEmbySettings();
@@ -132,10 +140,12 @@ export async function updateSettings(patch: Record<string, unknown>): Promise<Se
     taskflowToken: next.taskflowToken,
     tmdbCredential: next.tmdbCredential,
     omdbApiKey: next.omdbApiKey,
+    mdblistApiKey: next.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
     taskflowConfigured: Boolean(next.taskflowToken),
     tmdbConfigured: Boolean(next.tmdbCredential),
     omdbConfigured: Boolean(next.omdbApiKey),
+    mdblistConfigured: Boolean(next.mdblistApiKey),
     embyConfigured: Boolean(emby.baseUrl && emby.token),
   };
 }

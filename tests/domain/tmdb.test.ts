@@ -10,17 +10,28 @@ describe('searchTmdb', () => {
       calls.push([path, params]);
       return { movie_results: [{
         id: 1465063, title: 'Forgotten Island', release_date: '2026-09-10',
-        overview: 'Trama', poster_path: '/poster.jpg',
+        overview: 'Trama', poster_path: '/poster.jpg', vote_average: 7.83, vote_count: 1234,
       }] };
     });
     expect(calls[0]?.[0]).toBe('/find/tt36583977');
     expect(result).toEqual({ method: 'imdb', candidates: [{
       id: 1465063, mediaKind: 'movie', title: 'Forgotten Island', year: '2026',
       overview: 'Trama', poster: 'https://image.tmdb.org/t/p/w185/poster.jpg',
+      voteAverage: 7.83, voteCount: 1234,
       url: 'https://www.themoviedb.org/movie/1465063',
       imdbUrl: 'https://www.imdb.com/title/tt36583977/',
     }] });
     expect(result).not.toHaveProperty('validated');
+  });
+
+  it('omits malformed native vote data instead of inventing a rating', async () => {
+    const result = await searchTmdb({
+      title: 'Film', year: '2026', mediaKind: 'movie', imdbId: '', mode: 'title',
+    }, async () => ({ results: [{
+      id: 9, title: 'Film', vote_average: '8.1', vote_count: -4,
+    }] }));
+
+    expect(result.candidates[0]).toMatchObject({ voteAverage: null, voteCount: 0 });
   });
 
   it('fills a missing Italian overview from the English TMDB details', async () => {

@@ -14,4 +14,12 @@ describe('responsive sidebar layout', () => {
     expect(narrow).toContain('header { flex-wrap: wrap; }');
     expect(narrow).toContain('.header-actions { width: 100%; justify-content: flex-end; }');
   });
+
+  it('lays out compact wrapping rating badges with source-specific identities', () => {
+    expect(css).toMatch(/\.candidate-ratings\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/s);
+    expect(css).toMatch(/\.rating-badge\s*\{[^}]*border-radius:/s);
+    expect(css).toContain('.rating-imdb');
+    expect(css).toContain('.rating-tmdb');
+    expect(css).toContain('.rating-metacritic');
+  });
 });

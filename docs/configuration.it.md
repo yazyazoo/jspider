@@ -19,10 +19,11 @@ crea il file direttamente accanto al `manifest.json` estratto.
 | `taskflowToken` | Token Bearer amministrativo usato dalla WebUI e dal client API TaskFlow |
 | `tmdbCredential` | Token di lettura TMDB oppure API key v3 |
 | `omdbApiKey` | API key OMDb; salvata per i test ma non ancora usata da un client di rete |
+| `mdblistApiKey` | API key MDBList usata per leggere rating e premi |
 | `embyBaseUrl` | Origine HTTPS del server Emby |
 | `embyToken` | Token API Emby inviato solamente nell’header `X-Emby-Token` |
 
-I valori TaskFlow, TMDB e OMDb possono essere salvati anche dal pannello
+I valori TaskFlow, TMDB, OMDb e MDBList possono essere salvati anche dal pannello
 Impostazioni di JSpider. I valori espliciti in `chrome.storage.local`, compresi
 quelli vuoti, hanno la precedenza sui valori locali. Durante l’attuale fase di
 test questi campi mostrano intenzionalmente i valori in chiaro.
@@ -38,8 +39,9 @@ solo dopo la scelta esplicita del fallback.
   `dist/config.local.json` resta escluso grazie alla regola sul nome del file.
 - Il packaging esclude esplicitamente `config.local.json` anche quando una build
   locale lo ha copiato in `dist/`.
-- I token non vengono inseriti negli URL delle richieste né mostrati nel
-  pannello di stato Emby.
+- I token TaskFlow ed Emby non vengono inseriti negli URL delle richieste né
+  mostrati nel pannello di stato Emby. MDBList richiede la propria chiave nella
+  query; JSpider la oscura nei messaggi di errore HTTP e di rete.
 - Usa endpoint HTTPS per TaskFlow ed Emby, così le credenziali sono cifrate
   durante il transito.
 

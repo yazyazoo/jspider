@@ -15,6 +15,8 @@ import { TaskFlowClient } from './taskflow-client';
 import { TmdbClient } from './tmdb-client';
 import { EmbyClient } from './emby-client';
 import type { EmbyLookupInput } from '../domain/emby';
+import type { MdbListLookupInput } from '../domain/media-ratings';
+import { MdbListClient } from './mdblist-client';
 
 type Message = { target?: string; action?: string; [key: string]: unknown };
 
@@ -65,6 +67,9 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
   if (message.action === 'tmdb.search') {
     const client = new TmdbClient(settings.tmdbCredential);
     return searchTmdb(message.input as TmdbSearchInput, (path, params) => client.request(path, params));
+  }
+  if (message.action === 'mdblist.lookup') {
+    return new MdbListClient(settings.mdblistApiKey).lookup(message.input as MdbListLookupInput);
   }
   const taskflow = new TaskFlowClient(settings.taskflowBaseUrl, settings.taskflowToken);
   if (message.action === 'taskflow.catalog') {

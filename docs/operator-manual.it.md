@@ -25,7 +25,8 @@ package.
 ## Prima di aprire la sidebar
 
 1. Apri la pagina del singolo titolo su TitanHD o La Foresta Incantata.
-2. Verifica che TaskFlow e TMDB siano configurati. Emby è facoltativo e richiede
+2. Verifica che TaskFlow e TMDB siano configurati. MDBList è facoltativo e
+   aggiunge rating e premi. Emby è facoltativo e richiede
    `embyBaseUrl` ed `embyToken` in `config.local.json`.
 3. Fai clic sull’icona dell’estensione JSpider. La sidebar compare nella pagina;
    la stessa icona la richiude.
@@ -33,7 +34,7 @@ package.
 La barra del titolo contiene:
 
 - **Larghezza**: sceglie una delle cinque larghezze dell’overlay portabile.
-- **Impostazioni**: apre i campi di collegamento TaskFlow, TMDB e OMDb.
+- **Impostazioni**: apre i campi di collegamento TaskFlow, TMDB, OMDb e MDBList.
 - **Aggiorna pagina**: rilegge la scheda corrente e le relative versioni.
 
 Il pulsante in fondo **Apri WebUI TaskFlow** sostituisce la Home JSpider con la
@@ -63,6 +64,12 @@ viene validato senza conferma dell’operatore.
 
 La modifica di titolo, anno o tipo cancella la validazione e il risultato Emby
 precedenti.
+
+Se MDBList è configurato, sotto i comandi di ogni candidato compaiono i rating
+disponibili di IMDb, Rotten Tomatoes critica e pubblico, Metacritic, Trakt,
+Letterboxd e delle altre fonti supportate. I premi appaiono solo quando
+presenti. Ogni badge apre il titolo sul sito corrispondente in una nuova scheda;
+i valori mancanti vengono omessi e un errore MDBList non blocca la validazione.
 
 ### Conferma dei metadati
 

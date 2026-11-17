@@ -52,11 +52,18 @@ describe('sidebar fallback action', () => {
     expect(document.querySelector('#taskflow-create-slot')).not.toBeNull();
   });
 
-  it('shows TaskFlow, TMDB and OMDb credentials as clear text fields', () => {
+  it('shows TaskFlow, TMDB, OMDb and MDBList credentials as clear text fields', () => {
     const document = sidebar();
     expect(document.querySelector('#taskflow-token')?.getAttribute('type')).toBe('text');
     expect(document.querySelector('#tmdb-token')?.getAttribute('type')).toBe('text');
     expect(document.querySelector('#omdb-api-key')?.getAttribute('type')).toBe('text');
+    expect(document.querySelector('#mdblist-api-key')?.getAttribute('type')).toBe('text');
+  });
+
+  it('grants the background client access only to the MDBList API origin', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
+    expect(manifest.host_permissions).toContain('https://api.mdblist.com/*');
+    expect(manifest.host_permissions).not.toContain('https://www.rottentomatoes.com/*');
   });
 
   it('labels the two explicit metadata searches and removes the global fallback button', () => {

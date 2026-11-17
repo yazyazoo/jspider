@@ -8,6 +8,7 @@ import {
   clearTmdbView,
   initializeOverlayWidthControl,
   LatestResultGate,
+  loadCandidateEnrichments,
   runSidebarStartup,
 } from '../../src/sidebar/controller';
 import { initialCreateModeState, lockCreateMode, selectCreateMode } from '../../src/domain/create-mode';
@@ -47,6 +48,8 @@ describe('automatic snapshot TMDB lookup', () => {
       year: '2026',
       overview: 'Trama',
       poster: 'https://image.tmdb.org/t/p/w185/poster.jpg',
+      voteAverage: null,
+      voteCount: 0,
       url: 'https://www.themoviedb.org/movie/1465063',
       imdbUrl: 'https://www.imdb.com/title/tt36583977/',
     }] });
@@ -116,6 +119,30 @@ describe('TMDB request ordering', () => {
 
     failFirst(new Error('errore vecchio'));
     await expect(first).resolves.toBeNull();
+  });
+});
+
+describe('candidate rating enrichment', () => {
+  it('loads each candidate independently and omits failed lookups', async () => {
+    const candidates = [
+      { id: 1, mediaKind: 'movie' as const },
+      { id: 2, mediaKind: 'tv' as const },
+    ];
+    const result = await loadCandidateEnrichments(candidates, true, async (input) => {
+      if (input.tmdbId === 2) throw new Error('unavailable');
+      return { ratings: [], awards: { text: 'Won', url: 'https://www.imdb.com/title/tt1/awards/' } };
+    });
+
+    expect([...result.keys()]).toEqual([1]);
+    expect(result.get(1)?.awards?.text).toBe('Won');
+  });
+
+  it('does not call MDBList when it is not configured', async () => {
+    let called = false;
+    await expect(loadCandidateEnrichments(
+      [{ id: 1, mediaKind: 'movie' }], false, async () => { called = true; throw new Error(); },
+    )).resolves.toEqual(new Map());
+    expect(called).toBe(false);
   });
 });
 

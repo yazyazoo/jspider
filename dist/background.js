@@ -174,6 +174,8 @@ function candidate(value, mediaKind, imdbUrl = "") {
   const title = String(value.title ?? value.name ?? "");
   const date = String(value.release_date ?? value.first_air_date ?? "");
   const posterPath = typeof value.poster_path === "string" && /^\/[A-Za-z0-9._-]+$/.test(value.poster_path) ? value.poster_path : "";
+  const voteAverage = typeof value.vote_average === "number" && Number.isFinite(value.vote_average) && value.vote_average >= 0 && value.vote_average <= 10 ? value.vote_average : null;
+  const voteCount = Number.isSafeInteger(value.vote_count) && Number(value.vote_count) >= 0 ? Number(value.vote_count) : 0;
   return {
     id: Number(value.id),
     mediaKind,
@@ -181,6 +183,8 @@ function candidate(value, mediaKind, imdbUrl = "") {
     year: date.slice(0, 4),
     overview: String(value.overview ?? ""),
     poster: posterPath ? `https://image.tmdb.org/t/p/w185${posterPath}` : "",
+    voteAverage,
+    voteCount,
     url: `https://www.themoviedb.org/${mediaKind}/${String(value.id)}`,
     imdbUrl
   };
@@ -258,7 +262,8 @@ var SETTINGS_KEYS = [
   "taskflowBaseUrl",
   "taskflowToken",
   "tmdbCredential",
-  "omdbApiKey"
+  "omdbApiKey",
+  "mdblistApiKey"
 ];
 function isRecord3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -301,7 +306,8 @@ function normalizeStored(value) {
     taskflowBaseUrl: normalizeStoredBaseUrl(raw.taskflowBaseUrl),
     taskflowToken: typeof raw.taskflowToken === "string" ? raw.taskflowToken : "",
     tmdbCredential: typeof raw.tmdbCredential === "string" ? raw.tmdbCredential : "",
-    omdbApiKey: typeof raw.omdbApiKey === "string" ? raw.omdbApiKey : ""
+    omdbApiKey: typeof raw.omdbApiKey === "string" ? raw.omdbApiKey : "",
+    mdblistApiKey: typeof raw.mdblistApiKey === "string" ? raw.mdblistApiKey : ""
   };
 }
 async function loadSettings() {
@@ -328,10 +334,12 @@ async function settingsSummary() {
     taskflowToken: settings.taskflowToken,
     tmdbCredential: settings.tmdbCredential,
     omdbApiKey: settings.omdbApiKey,
+    mdblistApiKey: settings.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
     taskflowConfigured: Boolean(settings.taskflowToken),
     tmdbConfigured: Boolean(settings.tmdbCredential),
     omdbConfigured: Boolean(settings.omdbApiKey),
+    mdblistConfigured: Boolean(settings.mdblistApiKey),
     embyConfigured: Boolean(emby.baseUrl && emby.token)
   };
 }
@@ -341,7 +349,8 @@ async function updateSettings(patch) {
     taskflowBaseUrl: typeof patch.taskflowBaseUrl === "string" && patch.taskflowBaseUrl.trim() ? normalizeTaskFlowBaseUrl(patch.taskflowBaseUrl.trim()) : current.taskflowBaseUrl,
     taskflowToken: typeof patch.taskflowToken === "string" ? patch.taskflowToken.trim() : current.taskflowToken,
     tmdbCredential: typeof patch.tmdbCredential === "string" ? patch.tmdbCredential.trim() : current.tmdbCredential,
-    omdbApiKey: typeof patch.omdbApiKey === "string" ? patch.omdbApiKey.trim() : current.omdbApiKey
+    omdbApiKey: typeof patch.omdbApiKey === "string" ? patch.omdbApiKey.trim() : current.omdbApiKey,
+    mdblistApiKey: typeof patch.mdblistApiKey === "string" ? patch.mdblistApiKey.trim() : current.mdblistApiKey
   };
   await chrome.storage.local.set({ [STORAGE_KEY]: next });
   const emby = await loadEmbySettings();
@@ -350,10 +359,12 @@ async function updateSettings(patch) {
     taskflowToken: next.taskflowToken,
     tmdbCredential: next.tmdbCredential,
     omdbApiKey: next.omdbApiKey,
+    mdblistApiKey: next.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
     taskflowConfigured: Boolean(next.taskflowToken),
     tmdbConfigured: Boolean(next.tmdbCredential),
     omdbConfigured: Boolean(next.omdbApiKey),
+    mdblistConfigured: Boolean(next.mdblistApiKey),
     embyConfigured: Boolean(emby.baseUrl && emby.token)
   };
 }
@@ -674,6 +685,133 @@ var EmbyClient = class {
   }
 };
 
+// src/domain/media-ratings.ts
+var sourceOrder = [
+  "imdb",
+  "tomatoes",
+  "popcorn",
+  "metacritic",
+  "metacriticuser",
+  "letterboxd",
+  "trakt",
+  "rogerebert",
+  "myanimelist"
+];
+var labels = {
+  imdb: "IMDb",
+  tomatoes: "Rotten Tomatoes critica",
+  popcorn: "Rotten Tomatoes pubblico",
+  metacritic: "Metacritic",
+  metacriticuser: "Metacritic utenti",
+  letterboxd: "Letterboxd",
+  trakt: "Trakt",
+  rogerebert: "Roger Ebert",
+  myanimelist: "MyAnimeList"
+};
+function record(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function relativePath(value, prefix) {
+  if (typeof value !== "string" || !prefix.test(value) || value.includes("..") || value.includes("\\")) return null;
+  return value;
+}
+function finiteValue(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+function textValue(value) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(1)));
+}
+function ratingValue(source, value) {
+  if (source === "tomatoes" || source === "popcorn" || source === "trakt") return `${textValue(value)}%`;
+  if (source === "rogerebert") return `${textValue(value)}/4`;
+  return textValue(value);
+}
+function sourceUrl(source, item2, ratings, ids, mediaKind) {
+  const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
+  if (source === "imdb") return imdb ? `https://www.imdb.com/title/${imdb}/` : null;
+  if (source === "trakt") {
+    return Number.isSafeInteger(ids.trakt) && Number(ids.trakt) > 0 ? `https://trakt.tv/${mediaKind === "movie" ? "movies" : "shows"}/${String(ids.trakt)}` : null;
+  }
+  if (source === "myanimelist") {
+    return Number.isSafeInteger(ids.mal) && Number(ids.mal) > 0 ? `https://myanimelist.net/anime/${String(ids.mal)}` : null;
+  }
+  if (source === "tomatoes" || source === "popcorn") {
+    const path = relativePath(item2.url, /^\/(?:m|tv)\/[A-Za-z0-9._~/-]+$/);
+    return path ? `https://www.rottentomatoes.com${path}` : null;
+  }
+  if (source === "letterboxd") {
+    const path = relativePath(item2.url, /^\/film\/[A-Za-z0-9._~/-]+$/);
+    return path ? `https://letterboxd.com${path}` : null;
+  }
+  if (source === "metacritic" || source === "metacriticuser") {
+    const ownPath = relativePath(item2.url, /^\/[A-Za-z0-9._~-]+$/);
+    const critic = ratings.find((rating) => rating.source === "metacritic");
+    const criticPath = relativePath(critic?.url, /^\/[A-Za-z0-9._~-]+$/);
+    const path = ownPath ?? criticPath;
+    return path ? `https://www.metacritic.com/${mediaKind === "movie" ? "movie" : "tv"}${path}/` : null;
+  }
+  if (source === "rogerebert") {
+    const slug = typeof item2.url === "string" && /^[A-Za-z0-9._~-]+$/.test(item2.url) ? item2.url : "";
+    return slug ? `https://www.rogerebert.com/reviews/${slug}` : null;
+  }
+  return null;
+}
+function normalizeMdbListMedia(value, input) {
+  const body = record(value) ?? {};
+  const ids = record(body.ids) ?? {};
+  const rawRatings = Array.isArray(body.ratings) ? body.ratings.map(record).filter((item2) => item2 !== null) : [];
+  const ratings = [];
+  for (const source of sourceOrder) {
+    const item2 = rawRatings.find((candidate2) => candidate2.source === source);
+    if (!item2) continue;
+    const valueNumber = finiteValue(item2.value);
+    const url = sourceUrl(source, item2, rawRatings, ids, input.mediaKind);
+    if (valueNumber === null || !url) continue;
+    const votes = Number.isSafeInteger(item2.votes) && Number(item2.votes) >= 0 ? Number(item2.votes) : null;
+    ratings.push({ source, label: labels[source], value: ratingValue(source, valueNumber), votes, url });
+  }
+  const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
+  const awardsText = typeof body.awards === "string" ? body.awards.trim() : "";
+  const awards = awardsText && awardsText !== "N/A" && imdb ? { text: awardsText, url: `https://www.imdb.com/title/${imdb}/awards/` } : null;
+  return { ratings, awards };
+}
+
+// src/background/mdblist-client.ts
+var MdbListClient = class {
+  #apiKey;
+  #fetcher;
+  constructor(apiKey, fetcher = (request) => fetch(request)) {
+    this.#apiKey = apiKey.trim();
+    if (!this.#apiKey) throw new Error("Configura la API key MDBList.");
+    this.#fetcher = fetcher;
+  }
+  async lookup(input) {
+    if (!Number.isSafeInteger(input.tmdbId) || input.tmdbId <= 0) throw new Error("ID TMDB MDBList non valido.");
+    const type = input.mediaKind === "movie" ? "movie" : "show";
+    const url = new URL(`https://api.mdblist.com/tmdb/${type}/${input.tmdbId}/`);
+    url.searchParams.set("apikey", this.#apiKey);
+    let response;
+    try {
+      response = await this.#fetcher(new Request(url, { headers: { accept: "application/json" } }));
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Connessione a MDBList non riuscita.";
+      throw new Error(message.split(this.#apiKey).join("[redacted]"));
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error("MDBList ha restituito JSON non valido.");
+    }
+    if (!response.ok) {
+      const data = body !== null && typeof body === "object" && !Array.isArray(body) ? body : {};
+      const message = typeof data.error === "string" ? data.error : `MDBList ha risposto HTTP ${response.status}.`;
+      throw new Error(message.split(this.#apiKey).join("[redacted]"));
+    }
+    return normalizeMdbListMedia(body, input);
+  }
+};
+
 // src/background/index.ts
 chrome.action.onClicked.addListener((tab) => {
   void handleActionClick(tab, {
@@ -717,6 +855,9 @@ async function handle(message, sender) {
   if (message.action === "tmdb.search") {
     const client = new TmdbClient(settings.tmdbCredential);
     return searchTmdb(message.input, (path, params) => client.request(path, params));
+  }
+  if (message.action === "mdblist.lookup") {
+    return new MdbListClient(settings.mdblistApiKey).lookup(message.input);
   }
   const taskflow = new TaskFlowClient(settings.taskflowBaseUrl, settings.taskflowToken);
   if (message.action === "taskflow.catalog") {

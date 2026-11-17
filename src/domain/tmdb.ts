@@ -7,6 +7,8 @@ export interface TmdbCandidate {
   year: string;
   overview: string;
   poster: string;
+  voteAverage: number | null;
+  voteCount: number;
   url: string;
   imdbUrl: string;
 }
@@ -39,10 +41,16 @@ function candidate(value: unknown, mediaKind: MediaKind, imdbUrl = ''): TmdbCand
   const date = String(value.release_date ?? value.first_air_date ?? '');
   const posterPath = typeof value.poster_path === 'string' && /^\/[A-Za-z0-9._-]+$/.test(value.poster_path)
     ? value.poster_path : '';
+  const voteAverage = typeof value.vote_average === 'number'
+    && Number.isFinite(value.vote_average) && value.vote_average >= 0 && value.vote_average <= 10
+    ? value.vote_average : null;
+  const voteCount = Number.isSafeInteger(value.vote_count) && Number(value.vote_count) >= 0
+    ? Number(value.vote_count) : 0;
   return {
     id: Number(value.id), mediaKind, title, year: date.slice(0, 4),
     overview: String(value.overview ?? ''),
     poster: posterPath ? `https://image.tmdb.org/t/p/w185${posterPath}` : '',
+    voteAverage, voteCount,
     url: `https://www.themoviedb.org/${mediaKind}/${String(value.id)}`,
     imdbUrl,
   };

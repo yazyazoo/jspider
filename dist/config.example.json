@@ -3,6 +3,7 @@
   "taskflowToken": "INSERISCI_TOKEN_TASKFLOW",
   "tmdbCredential": "INSERISCI_TOKEN_O_API_KEY_TMDB",
   "omdbApiKey": "INSERISCI_API_KEY_OMDB",
+  "mdblistApiKey": "INSERISCI_API_KEY_MDBLIST",
   "embyBaseUrl": "https://emby.example",
   "embyToken": "INSERISCI_TOKEN_EMBY"
 }

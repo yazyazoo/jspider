@@ -24,7 +24,8 @@ directly and provides no package deletion or rollback command.
 ## Before opening the sidebar
 
 1. Open a supported single-title page on TitanHD or La Foresta Incantata.
-2. Confirm that TaskFlow and TMDB are configured. Emby is optional and requires
+2. Confirm that TaskFlow and TMDB are configured. MDBList is optional and adds
+   ratings and awards. Emby is optional and requires
    `embyBaseUrl` and `embyToken` in `config.local.json`.
 3. Click the JSpider extension icon. The in-page sidebar opens; the same icon
    toggles it closed.
@@ -33,7 +34,7 @@ The title bar provides:
 
 - **Larghezza**: chooses one of five overlay widths when the portable overlay
   is in use.
-- **Impostazioni**: opens the TaskFlow, TMDB and OMDb connection fields.
+- **Impostazioni**: opens the TaskFlow, TMDB, OMDb and MDBList connection fields.
 - **Aggiorna pagina**: rereads the current title page and its versions.
 
 The footer button **Apri WebUI TaskFlow** replaces the JSpider Home with the
@@ -62,6 +63,12 @@ operator confirmation.
   change JSpider state.
 
 Editing title, year or type clears the previous validation and Emby result.
+
+When MDBList is configured, each candidate card adds the available IMDb,
+Rotten Tomatoes critics and audience, Metacritic, Trakt, Letterboxd and other
+supported ratings below its actions. Awards appear only when available. Every
+badge opens that title on the source site in a new tab; unavailable values are
+omitted and lookup failures do not block validation.
 
 ### Confirming metadata
 

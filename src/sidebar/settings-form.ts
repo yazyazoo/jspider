@@ -3,6 +3,7 @@ export interface VisibleSettings {
   taskflowToken: string;
   tmdbCredential: string;
   omdbApiKey: string;
+  mdblistApiKey: string;
 }
 
 export interface SettingsFields {
@@ -10,6 +11,7 @@ export interface SettingsFields {
   taskflowToken: HTMLInputElement;
   tmdbCredential: HTMLInputElement;
   omdbApiKey: HTMLInputElement;
+  mdblistApiKey: HTMLInputElement;
 }
 
 export function fillSettingsFields(settings: VisibleSettings, fields: SettingsFields): void {
@@ -17,6 +19,7 @@ export function fillSettingsFields(settings: VisibleSettings, fields: SettingsFi
   fields.taskflowToken.value = settings.taskflowToken;
   fields.tmdbCredential.value = settings.tmdbCredential;
   fields.omdbApiKey.value = settings.omdbApiKey;
+  fields.mdblistApiKey.value = settings.mdblistApiKey;
 }
 
 export function readSettingsFields(fields: SettingsFields): VisibleSettings {
@@ -25,5 +28,6 @@ export function readSettingsFields(fields: SettingsFields): VisibleSettings {
     taskflowToken: fields.taskflowToken.value,
     tmdbCredential: fields.tmdbCredential.value,
     omdbApiKey: fields.omdbApiKey.value,
+    mdblistApiKey: fields.mdblistApiKey.value,
   };
 }
