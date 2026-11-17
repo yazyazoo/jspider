@@ -104,6 +104,7 @@ describe('single-repository documentation', () => {
       ['../../docs/configuration.md', '../../docs/configuration.it.md'],
       ['../../docs/development.md', '../../docs/development.it.md'],
       ['../../docs/architecture.md', '../../docs/architecture.it.md'],
+      ['../../docs/installation.md', '../../docs/installation.it.md'],
       ['../../docs/operator-manual.md', '../../docs/operator-manual.it.md'],
     ];
 
@@ -120,5 +121,26 @@ describe('single-repository documentation', () => {
     const italian = await readFile(new URL('../../README.it.md', import.meta.url), 'utf8');
     expect(english).toContain('[Operator manual](docs/operator-manual.md)');
     expect(italian).toContain('[Manuale operativo](docs/operator-manual.it.md)');
+  });
+
+  it('publishes a tracked dist folder and exact public distribution links', async () => {
+    const ignoreRules = await readFile(new URL('../../.gitignore', import.meta.url), 'utf8');
+    const english = await readFile(new URL('../../README.md', import.meta.url), 'utf8');
+    const italian = await readFile(new URL('../../README.it.md', import.meta.url), 'utf8');
+    const distUrl = 'https://github.com/yazyazoo/jspider/tree/main/dist';
+    const zipUrl = 'https://github.com/yazyazoo/jspider/releases/download/v0.1.0/jspider-v0.1.0.zip';
+
+    expect(ignoreRules.split(/\r?\n/)).not.toContain('dist/');
+    expect(ignoreRules.split(/\r?\n/)).toContain('config.local.json');
+    expect(english).toContain(distUrl);
+    expect(english).toContain(zipUrl);
+    expect(italian).toContain(distUrl);
+    expect(italian).toContain(zipUrl);
+  });
+
+  it('makes CI reject a tracked dist folder that is out of sync', async () => {
+    const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+
+    expect(workflow).toContain('git diff --exit-code -- dist');
   });
 });

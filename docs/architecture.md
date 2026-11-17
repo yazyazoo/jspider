@@ -62,5 +62,6 @@ official MyJDownloader extension.
 ## Distribution
 
 Source, tests, documentation, and build scripts live in this repository.
-`dist/` is generated and ignored. GitHub Release ZIP files contain only the
+`dist/` is generated and tracked so a clone is immediately loadable. Local
+configuration remains ignored. GitHub Release ZIP files contain only the
 runtime extension and placeholder configuration example.

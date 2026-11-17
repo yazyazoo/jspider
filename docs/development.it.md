@@ -40,8 +40,9 @@ script, aggiorna anche la pagina del titolo supportato.
 ## Configurazione durante lo sviluppo
 
 Copia `config.example.json` come `config.local.json` nella radice e compilalo
-localmente. La build copia il file in `dist/`; entrambe le posizioni sono
-ignorate. La build funziona anche se il file locale è assente.
+localmente. La build copia il file in `dist/`; entrambe le copie di
+`config.local.json` rimangono escluse mentre gli altri file compilati di
+`dist/` sono versionati. La build funziona anche senza il file locale.
 
 ## Creare una release candidata
 
@@ -52,6 +53,10 @@ npm run package:extension
 Il comando ripete la verifica completa e crea
 `release/jspider-v<versione>.zip`. Lo ZIP contiene direttamente i file runtime
 alla radice ed esclude sempre la configurazione locale.
+
+Dopo una modifica ai sorgenti, ricostruisci e committa i file aggiornati in
+`dist/` insieme ai sorgenti. Lo ZIP generato non viene committato: viene
+allegato alla GitHub Release corrispondente.
 
 ## Automazione
 

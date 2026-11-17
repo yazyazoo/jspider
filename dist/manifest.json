@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "JSpider",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "description": "Seleziona versioni, valida TMDB e crea workflow TaskFlow.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "https://titanhd.space/*",
+    "https://laforestaincantata.org/*",
+    "https://api.themoviedb.org/*",
+    "https://taskflow.redprimrose.mov/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Apri JSpider"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://titanhd.space/catalogo/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://laforestaincantata.org/index.php*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https: http: wss: ws:; img-src 'self' https://image.tmdb.org data:"
+  },
+  "web_accessible_resources": [{
+    "resources": ["sidebar.html"],
+    "matches": ["https://titanhd.space/*", "https://laforestaincantata.org/*"]
+  }]
+}
+

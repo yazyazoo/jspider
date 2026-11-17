@@ -6,8 +6,9 @@ JSpider reads `config.local.json` from the extension root. The tracked
 `config.example.json` contains every supported key and placeholder values.
 
 For source builds, keep `config.local.json` in the repository root. `npm run
-build` copies it into the ignored `dist/` directory. For a downloaded release,
-create the file directly beside the extracted `manifest.json`.
+build` copies it into `dist/`; the copied local file remains ignored although
+the compiled directory is tracked. For a downloaded release, create the file
+directly beside the extracted `manifest.json`.
 
 ## Fields
 
@@ -31,8 +32,9 @@ after the explicit fallback choice.
 
 ## Secret handling
 
-- `config.local.json`, `.env*`, keys, certificates, `dist/`, and `release/` are
-  ignored by Git.
+- `config.local.json`, `.env*`, keys, certificates, and `release/` are ignored
+  by Git. The compiled `dist/` directory is tracked, but any
+  `dist/config.local.json` remains ignored by the basename rule.
 - Release packaging explicitly excludes `config.local.json` even when a local
   build copied it into `dist/`.
 - Tokens are not placed in request URLs or rendered in the Emby status panel.

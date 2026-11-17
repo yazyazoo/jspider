@@ -39,7 +39,8 @@ well when a content script changed.
 ## Configuration during development
 
 Copy `config.example.json` to root `config.local.json` and fill it locally.
-The build copies the file into `dist/`; both locations remain ignored. A build
+The build copies the file into `dist/`; both copies of `config.local.json`
+remain ignored while the other compiled files in `dist/` are tracked. A build
 also succeeds when the local file is absent.
 
 ## Package a release candidate
@@ -51,6 +52,10 @@ npm run package:extension
 This reruns the complete verification and creates
 `release/jspider-v<version>.zip`. The ZIP contains runtime files directly at
 archive root and always excludes local configuration.
+
+After a source change, rebuild and commit the refreshed `dist/` files together
+with the source. The generated ZIP is not committed; it is attached to the
+matching GitHub Release.
 
 ## Automation
 

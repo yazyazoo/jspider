@@ -1,7 +1,6 @@
 .superpowers/
 docs/superpowers/
 node_modules/
-dist/
 release/
 coverage/
 YMM/

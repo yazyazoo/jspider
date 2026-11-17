@@ -7,9 +7,9 @@ versionato `config.example.json` contiene tutte le chiavi supportate con valori
 segnaposto.
 
 Per le build dai sorgenti, conserva `config.local.json` nella radice della
-repository. `npm run build` lo copia nella cartella ignorata `dist/`. Per una
-Release scaricata, crea il file direttamente accanto al `manifest.json`
-estratto.
+repository. `npm run build` lo copia in `dist/`; il file locale copiato rimane
+escluso anche se la cartella compilata è versionata. Per una Release scaricata,
+crea il file direttamente accanto al `manifest.json` estratto.
 
 ## Campi
 
@@ -33,8 +33,9 @@ solo dopo la scelta esplicita del fallback.
 
 ## Gestione dei segreti
 
-- `config.local.json`, `.env*`, chiavi, certificati, `dist/` e `release/` sono
-  esclusi da Git.
+- `config.local.json`, `.env*`, chiavi, certificati e `release/` sono esclusi
+  da Git. La cartella compilata `dist/` è versionata, ma ogni
+  `dist/config.local.json` resta escluso grazie alla regola sul nome del file.
 - Il packaging esclude esplicitamente `config.local.json` anche quando una build
   locale lo ha copiato in `dist/`.
 - I token non vengono inseriti negli URL delle richieste né mostrati nel

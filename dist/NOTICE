@@ -1,0 +1,14 @@
+JSpider
+Copyright (c) 2026 JSpider contributors
+
+Portions of the TitanHD and La Foresta Incantata adapters, technical metadata
+parsers, LFiCrypt resolver, recommendation logic, and sidebar presentation are
+derived from the GPL-3.0-or-later myjd-comment project. No MyJDownloader SDK,
+client, assets, manifest, login/session code, direct API calls, comment payloads,
+or Click'n'Load interception are included.
+
+The vendored TaskFlow WebUI bundle is Copyright (c) 2026 yazyazoo and licensed
+under the MIT License. See vendor/taskflow-ui/LICENSE and PROVENANCE.md.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+

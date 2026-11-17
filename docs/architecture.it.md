@@ -64,6 +64,6 @@ appartiene all’estensione ufficiale MyJDownloader.
 ## Distribuzione
 
 Sorgenti, test, documentazione e script di build vivono in questa repository.
-`dist/` viene generata ed è esclusa da Git. Gli ZIP delle GitHub Release
-contengono solamente l’estensione runtime e l’esempio di configurazione con
-segnaposto.
+`dist/` viene generata e versionata, così un clone è subito caricabile. La
+configurazione locale rimane esclusa. Gli ZIP delle GitHub Release contengono
+solamente l’estensione runtime e l’esempio di configurazione con segnaposto.

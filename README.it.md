@@ -17,7 +17,8 @@ Click'n'Load rimane responsabilità dell’estensione ufficiale MyJDownloader.
 
 ## Installare una release
 
-1. Scarica `jspider-v<versione>.zip` dalle **GitHub Releases**.
+1. Scarica [jspider-v0.1.0.zip](https://github.com/yazyazoo/jspider/releases/download/v0.1.0/jspider-v0.1.0.zip)
+   dalle [GitHub Releases](https://github.com/yazyazoo/jspider/releases).
 2. Estrai l’archivio in una cartella permanente.
 3. Copia `config.example.json` come `config.local.json` e inserisci endpoint e
    credenziali richiesti.
@@ -28,6 +29,11 @@ Click'n'Load rimane responsabilità dell’estensione ufficiale MyJDownloader.
 Gli archivi Release non contengono mai `config.local.json` o credenziali
 private.
 
+In alternativa, clona la repository e carica la cartella già compilata
+[dist/](https://github.com/yazyazoo/jspider/tree/main/dist). Prima dell’uso
+crea `dist/config.local.json` dall’esempio incluso; il file locale rimane
+escluso da Git.
+
 ## Sviluppo
 
 Requisiti: Node.js 22+ e un browser Chromium 120+.
@@ -37,10 +43,10 @@ npm ci
 npm run verify
 ```
 
-La build crea `JSpider/dist`. Carica `JSpider/dist` come estensione non
-pacchettizzata; non caricare la radice della repository. Quando esiste
-`config.local.json` nella radice, la build locale lo copia nella cartella
-ignorata `dist/`.
+La build aggiorna la cartella versionata `JSpider/dist`. Carica `JSpider/dist`
+come estensione non pacchettizzata; non caricare la radice della repository.
+Quando esiste `config.local.json` nella radice, la build locale lo copia in
+`dist/`, ma quella configurazione locale rimane esclusa da Git.
 
 Per creare lo stesso ZIP privo di segreti usato dalle Release:
 
@@ -53,6 +59,7 @@ L’archivio viene scritto in `release/` con `manifest.json` alla radice.
 ## Documentazione
 
 - [Configurazione](docs/configuration.it.md)
+- [Installazione e distribuzione](docs/installation.it.md)
 - [Sviluppo](docs/development.it.md)
 - [Architettura](docs/architecture.it.md)
 - [Manuale operativo](docs/operator-manual.it.md)

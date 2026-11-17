@@ -17,7 +17,8 @@ responsibility of the official MyJDownloader extension.
 
 ## Install a release
 
-1. Download `jspider-v<version>.zip` from **GitHub Releases**.
+1. Download [jspider-v0.1.0.zip](https://github.com/yazyazoo/jspider/releases/download/v0.1.0/jspider-v0.1.0.zip)
+   from [GitHub Releases](https://github.com/yazyazoo/jspider/releases).
 2. Extract it to a permanent directory.
 3. Copy `config.example.json` to `config.local.json` and enter the required
    endpoints and credentials.
@@ -26,6 +27,11 @@ responsibility of the official MyJDownloader extension.
 5. Select the extracted directory containing `manifest.json`.
 
 Release archives never contain `config.local.json` or private credentials.
+
+Alternatively, clone the repository and load the already compiled
+[dist/](https://github.com/yazyazoo/jspider/tree/main/dist) directory. Create
+`dist/config.local.json` from the included example before use; that local file
+is ignored by Git.
 
 ## Development
 
@@ -36,9 +42,10 @@ npm ci
 npm run verify
 ```
 
-The build creates `JSpider/dist`. Load `JSpider/dist` as the unpacked
-extension; do not load the repository root. When root `config.local.json`
-exists, the local build copies it into the ignored `dist/` directory.
+The build refreshes the tracked `JSpider/dist` directory. Load `JSpider/dist`
+as the unpacked extension; do not load the repository root. When root
+`config.local.json` exists, the local build copies it into `dist/`, but that
+local configuration remains ignored by Git.
 
 Create the same secret-free ZIP used by releases with:
 
@@ -51,6 +58,7 @@ The archive is written under `release/` with `manifest.json` at its root.
 ## Documentation
 
 - [Configuration](docs/configuration.md)
+- [Installation and distribution](docs/installation.md)
 - [Development](docs/development.md)
 - [Architecture](docs/architecture.md)
 - [Operator manual](docs/operator-manual.md)

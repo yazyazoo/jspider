@@ -1,0 +1,8 @@
+{
+  "taskflowBaseUrl": "https://taskflow.redprimrose.mov",
+  "taskflowToken": "INSERISCI_TOKEN_TASKFLOW",
+  "tmdbCredential": "INSERISCI_TOKEN_O_API_KEY_TMDB",
+  "omdbApiKey": "INSERISCI_API_KEY_OMDB",
+  "embyBaseUrl": "https://emby.example",
+  "embyToken": "INSERISCI_TOKEN_EMBY"
+}
