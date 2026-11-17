@@ -483,27 +483,24 @@ function initializeDismissiblePopover(button, panel, root) {
 }
 
 // src/sidebar/candidates.ts
-function externalButton(document2, href, label) {
-  const link = document2.createElement("a");
-  link.href = href;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.className = "button-link secondary";
-  link.textContent = label;
-  return link;
-}
-var ratingIcons = {
-  imdb: "IMDb",
-  tomatoes: "\u{1F345}",
-  popcorn: "\u{1F37F}",
-  metacritic: "M",
-  metacriticuser: "MU",
-  letterboxd: "LB",
-  trakt: "Trakt",
-  rogerebert: "Ebert",
-  myanimelist: "MAL"
+var ratingLogos = {
+  imdb: "imdb.png",
+  tomatoes: "rotten-tomatoes.png",
+  popcorn: "rotten-audience.png",
+  metacritic: "metacritic.png",
+  metacriticuser: "metacritic-user.png",
+  letterboxd: "letterboxd.png",
+  trakt: "trakt.png",
+  rogerebert: "roger-ebert.png",
+  myanimelist: "myanimelist.png"
 };
-function ratingLink(document2, source, iconText, value, href, title) {
+function ratingLogo(source, value) {
+  const numericValue = Number.parseFloat(value);
+  if (source === "tomatoes" && numericValue < 60) return "rotten-tomatoes-rotten.png";
+  if (source === "popcorn" && numericValue < 60) return "rotten-audience-rotten.png";
+  return ratingLogos[source];
+}
+function ratingLink(document2, source, logoFile, sourceLabel, value, href, title) {
   const link = document2.createElement("a");
   link.href = href;
   link.target = "_blank";
@@ -511,10 +508,15 @@ function ratingLink(document2, source, iconText, value, href, title) {
   link.className = `rating-badge rating-${source}`;
   link.title = title;
   link.setAttribute("aria-label", title);
-  const icon = document2.createElement("span");
-  icon.className = "rating-icon";
-  icon.textContent = iconText;
-  icon.setAttribute("aria-hidden", "true");
+  const icon = logoFile ? document2.createElement("img") : document2.createElement("span");
+  icon.className = logoFile ? "rating-logo" : "rating-icon";
+  if (icon instanceof HTMLImageElement) {
+    icon.src = `assets/ratings/${logoFile}`;
+    icon.alt = sourceLabel;
+  } else {
+    icon.textContent = sourceLabel;
+    icon.setAttribute("aria-hidden", "true");
+  }
   const score = document2.createElement("span");
   score.className = "rating-value";
   score.textContent = value;
@@ -530,6 +532,7 @@ function renderRatings(document2, candidate, enrichment) {
     container.append(ratingLink(
       document2,
       "tmdb",
+      "tmdb.png",
       "TMDB",
       value,
       candidate.url,
@@ -541,7 +544,8 @@ function renderRatings(document2, candidate, enrichment) {
     container.append(ratingLink(
       document2,
       rating.source,
-      ratingIcons[rating.source],
+      ratingLogo(rating.source, rating.value),
+      rating.label,
       rating.value,
       rating.url,
       `${rating.label}: ${rating.value}${votes}`
@@ -551,6 +555,7 @@ function renderRatings(document2, candidate, enrichment) {
     const awards = ratingLink(
       document2,
       "awards",
+      null,
       "\u{1F3C6}",
       enrichment.awards.text,
       enrichment.awards.url,
@@ -576,10 +581,26 @@ function renderCandidateCards(container, candidates2, validatedId, handlers, rat
       poster.textContent = "Nessuna locandina";
     }
     const body = document2.createElement("div");
+    body.className = "candidate-body";
     const title = document2.createElement("h3");
     title.textContent = `${candidate.title}${candidate.year ? ` (${candidate.year})` : ""}`;
     const overview = document2.createElement("p");
+    overview.className = "candidate-overview";
+    overview.id = `candidate-overview-${candidate.mediaKind}-${candidate.id}`;
     overview.textContent = candidate.overview || "Trama non disponibile.";
+    const overviewToggle = candidate.overview.trim().length > 160 ? document2.createElement("button") : null;
+    if (overviewToggle) {
+      overviewToggle.type = "button";
+      overviewToggle.className = "overview-toggle";
+      overviewToggle.textContent = "Leggi tutto";
+      overviewToggle.setAttribute("aria-expanded", "false");
+      overviewToggle.setAttribute("aria-controls", overview.id);
+      overviewToggle.addEventListener("click", () => {
+        const expanded = overview.classList.toggle("expanded");
+        overviewToggle.textContent = expanded ? "Mostra meno" : "Leggi tutto";
+        overviewToggle.setAttribute("aria-expanded", String(expanded));
+      });
+    }
     const actions = document2.createElement("div");
     actions.className = "candidate-actions";
     const validate = document2.createElement("button");
@@ -598,13 +619,13 @@ function renderCandidateCards(container, candidates2, validatedId, handlers, rat
     fallback.addEventListener("click", () => handlers.fallback(candidate));
     actions.append(
       validate,
-      externalButton(document2, candidate.url, "Apri su TMDB"),
-      externalButton(document2, candidate.imdbUrl, "Apri su IMDb"),
       fallback
     );
-    body.append(title, overview, actions);
+    body.append(title, overview);
+    if (overviewToggle) body.append(overviewToggle);
     const ratings = renderRatings(document2, candidate, ratingsById.get(candidate.id));
     if (ratings) body.append(ratings);
+    body.append(actions);
     card.append(poster, body);
     container.append(card);
   }

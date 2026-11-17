@@ -59,17 +59,19 @@ viene validato senza conferma dell’operatore.
   passa al titolo/anno correnti.
 - **Cerca su TMDB** esegue una nuova ricerca usando i campi modificati. È il
   comando da usare dopo aver cambiato manualmente il titolo.
-- **Apri su TMDB** e **Apri su IMDb** aprono le pagine di riferimento senza
-  modificare lo stato di JSpider.
+- I loghi rating TMDB, IMDb e delle altre fonti aprono il titolo sul sito
+  corrispondente senza modificare lo stato di JSpider.
 
 La modifica di titolo, anno o tipo cancella la validazione e il risultato Emby
 precedenti.
 
-Se MDBList è configurato, sotto i comandi di ogni candidato compaiono i rating
-disponibili di IMDb, Rotten Tomatoes critica e pubblico, Metacritic, Trakt,
-Letterboxd e delle altre fonti supportate. I premi appaiono solo quando
-presenti. Ogni badge apre il titolo sul sito corrispondente in una nuova scheda;
-i valori mancanti vengono omessi e un errore MDBList non blocca la validazione.
+Se MDBList è configurato, la scheda compatta mostra i rating disponibili di
+IMDb, Rotten Tomatoes critica e pubblico, Metacritic, Trakt, Letterboxd e delle
+altre fonti come collegamenti con logo e voto. La trama è limitata a tre righe;
+**Leggi tutto** la espande e **Mostra meno** la richiude. In questo modo restano
+insieme locandina, metadati e comandi. I premi appaiono solo
+quando presenti; i valori mancanti vengono omessi e un errore MDBList non
+blocca la validazione.
 
 ### Conferma dei metadati
 

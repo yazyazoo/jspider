@@ -18,8 +18,14 @@ describe('responsive sidebar layout', () => {
   it('lays out compact wrapping rating badges with source-specific identities', () => {
     expect(css).toMatch(/\.candidate-ratings\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/s);
     expect(css).toMatch(/\.rating-badge\s*\{[^}]*border-radius:/s);
-    expect(css).toContain('.rating-imdb');
-    expect(css).toContain('.rating-tmdb');
-    expect(css).toContain('.rating-metacritic');
+    expect(css).toMatch(/\.rating-logo\s*\{[^}]*object-fit:\s*contain/s);
+  });
+
+  it('uses the poster height efficiently and clamps long overviews to three lines', () => {
+    expect(css).toMatch(/\.candidate\s*\{[^}]*grid-template-columns:\s*96px\s+minmax\(0,\s*1fr\)/s);
+    expect(css).toMatch(/\.candidate-overview\s*\{[^}]*-webkit-line-clamp:\s*3/s);
+    expect(css).toMatch(/\.candidate-overview\.expanded\s*\{[^}]*-webkit-line-clamp:\s*unset/s);
+    expect(css).toMatch(/\.overview-toggle\s*\{[^}]*background:\s*transparent/s);
+    expect(css).toMatch(/@media \(max-width:\s*520px\)[\s\S]*\.candidate\s*\{[^}]*grid-template-columns:\s*72px\s+minmax\(0,\s*1fr\)/s);
   });
 });

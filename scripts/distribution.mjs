@@ -1,8 +1,16 @@
-import { access, copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { access, copyFile, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, posix, resolve } from 'node:path';
 import { zipSync } from 'fflate';
 
 export const LOCAL_CONFIG_FILE = 'config.local.json';
+
+export async function copyRatingAssets(root, output) {
+  await cp(
+    resolve(root, 'src', 'assets', 'ratings'),
+    resolve(output, 'assets', 'ratings'),
+    { recursive: true },
+  );
+}
 
 export async function copyLocalConfigIfPresent(root, output) {
   const source = resolve(root, LOCAL_CONFIG_FILE);

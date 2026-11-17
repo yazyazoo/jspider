@@ -6,6 +6,7 @@ import { unzipSync } from 'fflate';
 import {
   assertReleaseVersion,
   copyLocalConfigIfPresent,
+  copyRatingAssets,
   createReleaseArchive,
   releaseEntries,
 } from '../../scripts/distribution.mjs';
@@ -29,6 +30,18 @@ afterEach(async () => {
 });
 
 describe('local distribution configuration', () => {
+  it('copies packaged rating logos into the extension assets directory', async () => {
+    const root = await temporaryRoot();
+    const source = join(root, 'src', 'assets', 'ratings');
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, 'imdb.png'), new Uint8Array([1, 2, 3]));
+
+    await copyRatingAssets(root, join(root, 'dist'));
+
+    await expect(readFile(join(root, 'dist', 'assets', 'ratings', 'imdb.png')))
+      .resolves.toEqual(Buffer.from([1, 2, 3]));
+  });
+
   it('builds without inventing a local configuration when none exists', async () => {
     const root = await temporaryRoot();
     await writeFile(join(root, 'config.example.json'), '{"token":"PLACEHOLDER"}\n');

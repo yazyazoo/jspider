@@ -59,16 +59,18 @@ operator confirmation.
   current title/year when necessary.
 - **Cerca su TMDB** performs a new title search using the edited fields. Use it
   after manually changing the title.
-- **Apri su TMDB** and **Apri su IMDb** open external reference pages and do not
-  change JSpider state.
+- The TMDB, IMDb and other rating logos open the matching title on their source
+  site and do not change JSpider state.
 
 Editing title, year or type clears the previous validation and Emby result.
 
-When MDBList is configured, each candidate card adds the available IMDb,
+When MDBList is configured, each compact candidate card adds the available IMDb,
 Rotten Tomatoes critics and audience, Metacritic, Trakt, Letterboxd and other
-supported ratings below its actions. Awards appear only when available. Every
-badge opens that title on the source site in a new tab; unavailable values are
-omitted and lookup failures do not block validation.
+supported ratings as recognizable logo-and-score links. The overview is limited
+to three lines; **Leggi tutto** expands it and **Mostra meno** collapses it.
+This keeps the poster, metadata and actions together. Awards appear
+only when available; unavailable values are omitted and lookup failures do not
+block validation.
 
 ### Confirming metadata
 

@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { copyLocalConfigIfPresent } from './distribution.mjs';
+import { copyLocalConfigIfPresent, copyRatingAssets } from './distribution.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'dist');
@@ -37,5 +37,6 @@ await Promise.all([
   copyFile(resolve(root, 'NOTICE'), resolve(output, 'NOTICE')),
 ]);
 
+await copyRatingAssets(root, output);
 await copyLocalConfigIfPresent(root, output);
 

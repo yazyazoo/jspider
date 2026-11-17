@@ -18,7 +18,7 @@ const candidate: TmdbCandidate = {
 };
 
 describe('candidate cards', () => {
-  it('renders four inline actions as controls and a rounded-ready validated card', () => {
+  it('keeps only the two workflow actions and removes duplicate external buttons', () => {
     const container = document.createElement('div');
     renderCandidateCards(container, [candidate], 42, { validate() {}, fallback() {} });
     const card = container.querySelector('.candidate');
@@ -26,13 +26,9 @@ describe('candidate cards', () => {
     expect(card?.classList.contains('validated')).toBe(true);
     expect(actions.map((item) => item.textContent)).toEqual([
       'Valida questo titolo',
-      'Apri su TMDB',
-      'Apri su IMDb',
       'Usa esplicitamente titolo e anno senza TMDB ID',
     ]);
-    expect((actions[1] as HTMLAnchorElement).href).toBe(candidate.url);
-    expect((actions[2] as HTMLAnchorElement).href).toBe(candidate.imdbUrl);
-    expect(actions[1]?.classList.contains('button-link')).toBe(true);
+    expect(container.querySelector('.candidate-actions a')).toBeNull();
   });
 
   it('renders only available ratings and awards as safe new-tab links', () => {
@@ -52,12 +48,23 @@ describe('candidate cards', () => {
 
     const links = [...container.querySelectorAll<HTMLAnchorElement>('.candidate-ratings a')];
     expect(links.map((link) => link.textContent?.trim())).toEqual([
-      'TMDB8.0', 'IMDb8.2', '🍅93%', '🍿91%', '🏆Won 7 Oscars',
+      '8.0', '8.2', '93%', '91%', '🏆Won 7 Oscars',
     ]);
+    expect(links.slice(0, 4).map((link) => link.querySelector('img')?.getAttribute('src'))).toEqual([
+      'assets/ratings/tmdb.png',
+      'assets/ratings/imdb.png',
+      'assets/ratings/rotten-tomatoes.png',
+      'assets/ratings/rotten-audience.png',
+    ]);
+    expect(links.slice(0, 4).every((link) => link.querySelector('img')?.alt)).toBe(true);
     expect(links[0]?.href).toBe(candidate.url);
     expect(links.every((link) => link.target === '_blank')).toBe(true);
     expect(links.every((link) => link.rel === 'noopener noreferrer')).toBe(true);
     expect(links[0]?.title).toContain('12.928 voti');
+    expect(container.querySelector('.candidate-overview')?.nextElementSibling)
+      .toBe(container.querySelector('.candidate-ratings'));
+    expect(container.querySelector('.candidate-ratings')?.nextElementSibling)
+      .toBe(container.querySelector('.candidate-actions'));
   });
 
   it('omits the whole rating row when every value is missing', () => {
@@ -67,6 +74,54 @@ describe('candidate cards', () => {
     });
 
     expect(container.querySelector('.candidate-ratings')).toBeNull();
+  });
+
+  it('uses distinct rotten source and audience logos below sixty percent', () => {
+    const container = document.createElement('div');
+    renderCandidateCards(container, [candidate], null, { validate() {}, fallback() {} }, new Map([[42, {
+      ratings: [
+        { source: 'tomatoes', label: 'Rotten Tomatoes critica', value: '42%', votes: null, url: 'https://www.rottentomatoes.com/m/example' },
+        { source: 'popcorn', label: 'Rotten Tomatoes pubblico', value: '55%', votes: null, url: 'https://www.rottentomatoes.com/m/example' },
+      ],
+      awards: null,
+    }]]));
+
+    expect([...container.querySelectorAll<HTMLImageElement>('.rating-logo')].slice(-2)
+      .map((image) => image.getAttribute('src'))).toEqual([
+      'assets/ratings/rotten-tomatoes-rotten.png',
+      'assets/ratings/rotten-audience-rotten.png',
+    ]);
+  });
+
+  it('expands a long three-line overview and lets the operator collapse it again', () => {
+    const container = document.createElement('div');
+    renderCandidateCards(container, [{
+      ...candidate,
+      overview: 'Una trama molto lunga. '.repeat(20),
+    }], null, { validate() {}, fallback() {} });
+
+    const overview = container.querySelector<HTMLElement>('.candidate-overview')!;
+    const toggle = container.querySelector<HTMLButtonElement>('.overview-toggle')!;
+    expect(toggle.hidden).toBe(false);
+    expect(toggle.textContent).toBe('Leggi tutto');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-controls')).toBe(overview.id);
+
+    toggle.click();
+    expect(overview.classList.contains('expanded')).toBe(true);
+    expect(toggle.textContent).toBe('Mostra meno');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+    toggle.click();
+    expect(overview.classList.contains('expanded')).toBe(false);
+    expect(toggle.textContent).toBe('Leggi tutto');
+  });
+
+  it('does not add a read-more control to a short overview', () => {
+    const container = document.createElement('div');
+    renderCandidateCards(container, [candidate], null, { validate() {}, fallback() {} });
+
+    expect(container.querySelector('.overview-toggle')).toBeNull();
   });
 
   it('passes the exact candidate to validation and title/year fallback actions', () => {

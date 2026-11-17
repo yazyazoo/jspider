@@ -12,3 +12,7 @@ under the MIT License. See vendor/taskflow-ui/LICENSE and PROVENANCE.md.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
+Rating logo image files under src/assets/ratings are sourced from the public
+Druidblack/jellyfin_ratings repository. Product names and marks belong to their
+respective owners.
+
