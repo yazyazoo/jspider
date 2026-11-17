@@ -1,0 +1,62 @@
+English | [Italiano](development.it.md)
+
+# Development
+
+## Requirements
+
+- Node.js 22 or newer
+- npm with the checked-in lockfile
+- Chrome, Edge, Brave, Vivaldi, Opera, or another Chromium 120+ browser
+
+## Install and verify
+
+```powershell
+npm ci
+npm run verify
+```
+
+`verify` runs TypeScript checking, all Vitest tests, the MyJD/legacy audit, and
+the esbuild production build.
+
+Individual commands:
+
+```powershell
+npm run check
+npm test
+npm run audit:legacy
+npm run build
+```
+
+## Load the extension
+
+The build output is `JSpider/dist`. Open the browser's extensions page, enable
+Developer mode, choose **Load unpacked**, and select that directory.
+
+After changing the manifest, service worker, or content scripts, rebuild and
+use the extension card's Reload action. Refresh the supported title page as
+well when a content script changed.
+
+## Configuration during development
+
+Copy `config.example.json` to root `config.local.json` and fill it locally.
+The build copies the file into `dist/`; both locations remain ignored. A build
+also succeeds when the local file is absent.
+
+## Package a release candidate
+
+```powershell
+npm run package:extension
+```
+
+This reruns the complete verification and creates
+`release/jspider-v<version>.zip`. The ZIP contains runtime files directly at
+archive root and always excludes local configuration.
+
+## Automation
+
+`.github/workflows/ci.yml` verifies pushes and pull requests and exposes the
+compiled directory as a workflow artifact. `.github/workflows/release.yml` is
+inert until a matching `v*` tag is pushed; it requires the tag, package, and
+manifest versions to match before creating a GitHub Release asset.
+
+Do not create tags, publish releases, or deploy without explicit authorization.

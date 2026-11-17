@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JSpider</title>
+  <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+  <header>
+    <div class="brand-block"><span class="eyebrow"><span id="source-name">SITO</span> → TASKFLOW</span><h1>JSpider<span class="dot">.</span></h1></div>
+    <div id="header-actions" class="header-actions">
+      <label id="overlay-width-control" class="width-control" hidden><span>Larghezza</span><select id="overlay-width" aria-label="Larghezza pannello JSpider"><option value="420">420 px</option><option value="520">520 px</option><option value="650" selected>650 px</option><option value="780">780 px</option><option value="900">900 px</option></select></label>
+      <button id="settings-button" class="quiet" type="button" aria-expanded="false" aria-controls="settings-panel">Impostazioni</button>
+      <button id="refresh" class="quiet" type="button">Aggiorna pagina</button>
+    </div>
+    <div id="settings-panel" class="settings-popover" role="dialog" aria-label="Impostazioni JSpider" hidden>
+      <form id="settings-form">
+        <label for="taskflow-url">Servizio TaskFlow</label>
+        <input id="taskflow-url" type="url" required placeholder="https://taskflow.example">
+        <label for="taskflow-token" class="spaced">Token TaskFlow</label>
+        <input id="taskflow-token" type="text" autocomplete="off">
+        <label for="tmdb-token" class="spaced">Token TMDB o API key v3</label>
+        <input id="tmdb-token" type="text" autocomplete="off">
+        <label for="omdb-api-key" class="spaced">API key OMDb</label>
+        <input id="omdb-api-key" type="text" autocomplete="off">
+        <button type="submit" class="settings-save">Salva collegamenti</button>
+      </form>
+      <p id="settings-state" class="muted small"></p>
+      <p class="attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    </div>
+  </header>
+  <main>
+    <div id="home-view">
+    <p id="source" class="muted">Lettura della scheda…</p>
+    <section id="phase-1">
+      <div class="section-title"><span class="step">1</span><h2>Trova e valida il titolo <button type="button" class="info-button" data-tooltip aria-describedby="tip-validation" aria-label="Informazioni sulla validazione TMDB">i</button></h2><span id="tip-validation" role="tooltip" hidden>Conferma sempre il candidato corretto, anche quando la corrispondenza IMDb sembra esatta.</span></div>
+      <form id="search-form">
+        <label for="title">Titolo</label><input id="title" required maxlength="200">
+        <div class="columns">
+          <div><label for="year">Anno</label><input id="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Qualsiasi anno"></div>
+          <div><label for="kind">Tipo</label><select id="kind" required><option value="">Scegli…</option><option value="movie">Film</option><option value="tv">Serie TV</option></select></div>
+        </div>
+        <div class="actions"><button type="button" id="imdb-search" class="secondary">Cerca tramite IMDb</button><button type="submit" id="tmdb-search">Cerca su TMDB</button></div>
+      </form>
+      <p id="search-status" class="muted" role="status"></p>
+      <div id="results"></div>
+      <div id="emby-status" class="emby-status idle" role="status" aria-live="polite"></div>
+      <p id="validation-state" class="muted"></p>
+    </section>
+
+    <section id="phase-2">
+      <div class="section-title"><span class="step">2</span><h2>Scegli le versioni</h2></div>
+      <label for="profile">Versioni da proporre</label>
+      <select id="profile"><option value="4k1080">4K + 1080p</option><option value="1080dual">1080p sorgente/untouched + codifica</option><option value="manual">Scelta manuale</option></select>
+      <div class="label-info spaced"><label for="limit">Scarta sorgenti oltre · Mb/s totali</label><button type="button" class="info-button" data-tooltip aria-describedby="tip-bitrate" aria-label="Informazioni sul limite bitrate">i</button><span id="tip-bitrate" role="tooltip" hidden>Vuoto o 0 significa nessun limite. I confronti incerti restano indicativi.</span></div>
+      <input id="limit" type="number" min="0" max="1000" step="0.1" placeholder="Senza limite">
+      <p id="recommendation-notes" class="muted small"></p>
+      <div id="versions" aria-label="Versioni disponibili"></div>
+      <div class="button-info"><button id="thank-selected" type="button" class="secondary" disabled>Ringrazia le versioni selezionate</button><button type="button" class="info-button" data-tooltip aria-describedby="thanks-hint" aria-label="Informazioni sui ringraziamenti">i</button><span id="thanks-hint" role="tooltip" hidden>Le versioni già sbloccate vengono saltate; selezioni e sidebar restano aperte.</span></div>
+      <fieldset><legend>Host da inviare</legend>
+        <label class="check"><input type="checkbox" id="filestore" value="filestore.me">Filestore <span id="filestore-count" class="muted"></span></label>
+        <label class="check"><input type="checkbox" id="terabytez" value="terabytez.org" checked>Terabytez <span id="terabytez-count" class="muted"></span></label>
+      </fieldset>
+      <label for="rar-password" class="spaced">Password RAR</label>
+      <input id="rar-password" autocomplete="off" placeholder="Rilevata automaticamente o inserita manualmente">
+      <p id="rar-password-state" class="muted small"></p>
+    </section>
+
+    <section id="phase-3">
+      <div class="section-title"><span class="step">3</span><h2>Crea il workflow</h2></div>
+      <label for="workflow-name">Nome workflow</label><input id="workflow-name" autocomplete="off">
+      <fieldset class="create-mode" aria-label="Modalità di creazione">
+        <label><input type="radio" name="create-mode" id="mode-quick" value="quick" checked>Quick Workflow</label>
+        <label><input type="radio" name="create-mode" id="mode-taskflow" value="taskflow">TaskFlow</label>
+      </fieldset>
+      <div id="quick-panel">
+        <label for="workflow-preset">Preset TaskFlow</label>
+        <select id="workflow-preset"><option value="">Seleziona un preset TaskFlow</option></select>
+        <p id="preset-summary" class="muted small">Seleziona un preset TaskFlow per usare Quick Workflow.</p>
+        <div class="quick-flags spaced">
+          <div class="label-info"><label class="check"><input type="checkbox" id="autodownload" checked>Autodownload</label><button type="button" class="info-button" data-tooltip aria-describedby="tip-autodownload" aria-label="Informazioni su Autodownload">i</button><span id="tip-autodownload" role="tooltip" hidden>Se disattivato, Quick Workflow invia soltanto al LinkGrabber e non esegue Create.</span></div>
+          <label class="check"><input type="checkbox" id="cleanup" checked>Cleanup</label>
+        </div>
+        <button id="quick-workflow" type="button" disabled>Quick Workflow</button>
+      </div>
+      <div id="taskflow-panel" hidden>
+        <div class="button-info"><button id="load-packages" type="button" disabled>Carica package su JD</button><button type="button" class="info-button" data-tooltip aria-describedby="tip-load-packages" aria-label="Informazioni sul caricamento package">i</button><span id="tip-load-packages" role="tooltip" hidden>Carica le versioni su JD e apre la WebUI Create già compilata. Non crea ancora il workflow.</span></div>
+        <p id="taskflow-create-state" class="muted small"></p>
+        <div id="taskflow-create-slot"></div>
+      </div>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+    </div>
+    <section id="taskflow-full-panel" aria-label="WebUI TaskFlow" hidden></section>
+    <footer><button id="open-taskflow-webui" class="secondary" type="button">Apri WebUI TaskFlow</button></footer>
+  </main>
+  <script type="module" src="taskflow-ui.es.js"></script>
+  <script type="module" src="sidebar.js"></script>
+</body>
+</html>
+

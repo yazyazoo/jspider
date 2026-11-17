@@ -1,0 +1,25 @@
+{
+  "name": "jspider",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser extension for collecting release metadata and creating TaskFlow workflows",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run check && npm test && npm run audit:legacy && npm run build",
+    "package:extension": "npm run verify && node scripts/package-extension.mjs",
+    "audit:legacy": "node scripts/audit-legacy.mjs"
+  },
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@types/chrome": "^0.1.30",
+    "esbuild": "^0.27.0",
+    "fflate": "0.8.3",
+    "jsdom": "^27.2.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.10"
+  }
+}
