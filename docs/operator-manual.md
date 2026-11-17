@@ -34,6 +34,7 @@ The title bar provides:
 
 - **Larghezza**: chooses one of five overlay widths when the portable overlay
   is in use.
+- **Log JSON**: opens the local record of the latest Quick Workflow run.
 - **Impostazioni**: opens the TaskFlow, TMDB, OMDb and MDBList connection fields.
 - **Aggiorna pagina**: rereads the current title page and its versions.
 
@@ -174,6 +175,19 @@ Do not click again while the status says the operation is running. If Create
 succeeds but Start fails, use the TaskFlow WebUI to retry **Start only**; do not
 resubmit packages.
 
+#### Quick Workflow JSON log
+
+The title-bar **Log JSON** button stores and displays only the latest Quick
+Workflow run. Expandable sections are appended in order: Submission request and
+response, Create request and response, then Start request and response. An
+error is recorded under its exact phase with the structured details returned.
+
+The log updates while the run progresses, survives closing the sidebar and is
+not cleared when opening the WebUI. **Copia tutto** copies the complete JSON
+document; **Svuota** removes it from local extension storage. Values are
+deliberately shown in clear text and may include links, RAR passwords, names
+and identifiers. API keys, TaskFlow tokens and HTTP headers are not added.
+
 ### TaskFlow
 
 This branch keeps creation under the embedded TaskFlow WebUI.
@@ -198,6 +212,8 @@ preset, task order, task JSON, cleanup and the final Create/Start action.
 
 ## Handling failures safely
 
+- **Quick Workflow error**: open **Log JSON** before repeating the operation and
+  inspect the latest recorded phase and response.
 - **Submission could not be confirmed**: do not immediately repeat the action.
   The package may already be visible in JD even though TaskFlow could not
   confirm and persist it. Inspect JD and the TaskFlow package list first.

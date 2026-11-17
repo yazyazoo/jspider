@@ -28,4 +28,10 @@ describe('responsive sidebar layout', () => {
     expect(css).toMatch(/\.overview-toggle\s*\{[^}]*background:\s*transparent/s);
     expect(css).toMatch(/@media \(max-width:\s*520px\)[\s\S]*\.candidate\s*\{[^}]*grid-template-columns:\s*72px\s+minmax\(0,\s*1fr\)/s);
   });
+
+  it('keeps the JSON log readable inside a bounded title popover', () => {
+    expect(css).toMatch(/\.log-popover\s*\{[^}]*max-height:\s*calc\(100vh\s*-\s*\d+px\)/s);
+    expect(css).toMatch(/\.quick-log-entries\s*\{[^}]*overflow:\s*auto/s);
+    expect(css).toMatch(/\.quick-log-entry pre\s*\{[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/s);
+  });
 });

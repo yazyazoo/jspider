@@ -17,8 +17,19 @@ import { EmbyClient } from './emby-client';
 import type { EmbyLookupInput } from '../domain/emby';
 import type { MdbListLookupInput } from '../domain/media-ratings';
 import { MdbListClient } from './mdblist-client';
+import {
+  handleQuickWorkflowLogAction,
+  QuickWorkflowLogStore,
+  type QuickWorkflowLogStorage,
+} from './quick-workflow-log';
 
 type Message = { target?: string; action?: string; [key: string]: unknown };
+
+const quickWorkflowLog = new QuickWorkflowLogStore({
+  get: (key) => chrome.storage.local.get(key),
+  set: (items) => chrome.storage.local.set(items),
+  remove: (key) => chrome.storage.local.remove(key),
+} satisfies QuickWorkflowLogStorage);
 
 chrome.action.onClicked.addListener((tab) => {
   void handleActionClick(tab, {
@@ -30,10 +41,17 @@ function serializeError(reason: unknown): Record<string, unknown> {
   if (reason instanceof SubmissionBatchError) {
     return { name: reason.name, message: reason.message, analysis: reason.analysis };
   }
-  return {
+  const serialized: Record<string, unknown> = {
     name: reason instanceof Error ? reason.name : 'Error',
     message: reason instanceof Error ? reason.message : 'Operazione non riuscita.',
   };
+  if (reason !== null && typeof reason === 'object') {
+    const record = reason as Record<string, unknown>;
+    for (const key of ['status', 'code', 'details']) {
+      if (record[key] !== undefined) serialized[key] = record[key];
+    }
+  }
+  return serialized;
 }
 
 async function handle(message: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -47,6 +65,10 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
       request,
       (tabId, pageMessage) => chrome.tabs.sendMessage(tabId, pageMessage),
     );
+  }
+  if (message.action === 'taskflow.quickWorkflowLog.get'
+    || message.action === 'taskflow.quickWorkflowLog.clear') {
+    return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
   if (message.action === 'settings.get') return settingsSummary();
   if (message.action === 'settings.save') {
@@ -63,6 +85,50 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
     if (!emby.baseUrl || !emby.token) throw new Error('Emby non configurato in config.local.json.');
     return new EmbyClient(emby.baseUrl, emby.token).lookup(message.input as EmbyLookupInput);
   }
+  if (message.action === 'taskflow.quickWorkflow') {
+    let logRunId: string | null = null;
+    try { logRunId = await quickWorkflowLog.start(); }
+    catch { /* Diagnostics must never interrupt Quick Workflow. */ }
+    const appendLog = async (event: Parameters<typeof quickWorkflowLog.append>[0]) => {
+      if (!logRunId) return;
+      try { await quickWorkflowLog.append(event, logRunId); }
+      catch { /* Diagnostics must never replace the TaskFlow result. */ }
+    };
+    let pipelineStarted = false;
+    try {
+      if (!Array.isArray(message.variants) || !Array.isArray(message.hosts)
+        || typeof message.autodownload !== 'boolean'
+        || (message.autodownload && (!message.workflow || typeof message.workflow !== 'object'))) {
+        throw new Error('Dati Quick Workflow non validi.');
+      }
+      if (message.autodownload) {
+        requireQuickWorkflowPreset(
+          (message.workflow as Record<string, unknown>).preset,
+        );
+      }
+      const settings = await loadSettings();
+      const taskflow = new TaskFlowClient(settings.taskflowBaseUrl, settings.taskflowToken);
+      const integrationId = await taskflow.discoverJDownloaderIntegration();
+      pipelineStarted = true;
+      return await runQuickWorkflow({
+        api: taskflow, integrationId,
+        variants: message.variants as SubmissionVariant[],
+        hosts: message.hosts as Array<'filestore.me' | 'terabytez.org'>,
+        autodownload: message.autodownload,
+        onLogEvent: appendLog,
+        ...(message.autodownload ? {
+          workflow: message.workflow as never,
+        } : {}),
+      });
+    } catch (reason) {
+      if (!pipelineStarted) {
+        await appendLog({
+          phase: 'submission', kind: 'error', payload: serializeError(reason),
+        });
+      }
+      throw reason;
+    }
+  }
   const settings = await loadSettings();
   if (message.action === 'tmdb.search') {
     const client = new TmdbClient(settings.tmdbCredential);
@@ -74,28 +140,6 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
   const taskflow = new TaskFlowClient(settings.taskflowBaseUrl, settings.taskflowToken);
   if (message.action === 'taskflow.catalog') {
     return { presets: await taskflow.getPresets() };
-  }
-  if (message.action === 'taskflow.quickWorkflow') {
-    if (!Array.isArray(message.variants) || !Array.isArray(message.hosts)
-      || typeof message.autodownload !== 'boolean'
-      || (message.autodownload && (!message.workflow || typeof message.workflow !== 'object'))) {
-      throw new Error('Dati Quick Workflow non validi.');
-    }
-    if (message.autodownload) {
-      requireQuickWorkflowPreset(
-        (message.workflow as Record<string, unknown>).preset,
-      );
-    }
-    const variants = message.variants as SubmissionVariant[];
-    const integrationId = await taskflow.discoverJDownloaderIntegration();
-    return runQuickWorkflow({
-      api: taskflow, integrationId, variants,
-      hosts: message.hosts as Array<'filestore.me' | 'terabytez.org'>,
-      autodownload: message.autodownload,
-      ...(message.autodownload ? {
-        workflow: message.workflow as never,
-      } : {}),
-    });
   }
   if (message.action === 'taskflow.loadPackages') {
     if (!Array.isArray(message.variants) || !Array.isArray(message.hosts)) {

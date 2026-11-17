@@ -50,11 +50,24 @@ describe('TaskFlowClient', () => {
   });
 
   it('surfaces the safe TaskFlow error envelope without including the token', async () => {
-    const client = new TaskFlowClient('https://taskflow.example', 'private-token', async () => json({
-      error: { code: 'api.validation_error', message: 'Request validation failed' },
-    }, 422));
+    const response = {
+      error: {
+        code: 'api.validation_error', message: 'Request validation failed',
+        details: { preset: 'missing' },
+      },
+    };
+    const client = new TaskFlowClient('https://taskflow.example', 'private-token', async () => json(response, 422));
     await expect(client.createWorkflow({})).rejects.toMatchObject({
       message: 'Request validation failed', code: 'api.validation_error', status: 422,
+      response,
+    });
+  });
+
+  it('attaches malformed successful Create JSON to the validation error', async () => {
+    const response = { status: 'created', warning: 'id missing' };
+    const client = new TaskFlowClient('https://taskflow.example', 'token', async () => json(response, 201));
+    await expect(client.createWorkflow({})).rejects.toMatchObject({
+      message: 'Risposta Create di TaskFlow non valida.', response,
     });
   });
 });

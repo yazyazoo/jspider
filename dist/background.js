@@ -127,13 +127,39 @@ var SubmissionBatchError = class extends Error {
     this.analysis = analysis;
   }
 };
+async function emitLog(listener, event) {
+  try {
+    await listener?.(event);
+  } catch {
+  }
+}
+function errorPayload(reason) {
+  if (!(reason instanceof Error)) return { name: "Error", message: String(reason) };
+  const payload = { name: reason.name, message: reason.message };
+  const record2 = reason;
+  for (const key of ["status", "code", "analysis", "details", "response"]) {
+    if (record2[key] !== void 0) payload[key] = record2[key];
+  }
+  return payload;
+}
 async function submitPackageBatch(input, autodownload) {
-  if (!input.integrationId.trim()) throw new Error("Seleziona un\u2019integrazione JDownloader TaskFlow.");
-  const request = buildSubmissionBatch(input.variants, input.hosts, autodownload);
-  const rawResults = await input.api.submitPackages(input.integrationId, request);
-  const submission = analyzeSubmissionResults(request.packages, rawResults, autodownload);
-  if (submission.failures.length) throw new SubmissionBatchError(submission);
-  return submission;
+  try {
+    if (!input.integrationId.trim()) throw new Error("Seleziona un\u2019integrazione JDownloader TaskFlow.");
+    const request = buildSubmissionBatch(input.variants, input.hosts, autodownload);
+    await emitLog(input.onLogEvent, { phase: "submission", kind: "request", payload: request });
+    const rawResults = await input.api.submitPackages(input.integrationId, request);
+    await emitLog(input.onLogEvent, { phase: "submission", kind: "response", payload: rawResults });
+    const submission = analyzeSubmissionResults(request.packages, rawResults, autodownload);
+    if (submission.failures.length) throw new SubmissionBatchError(submission);
+    return submission;
+  } catch (reason) {
+    await emitLog(input.onLogEvent, {
+      phase: "submission",
+      kind: "error",
+      payload: errorPayload(reason)
+    });
+    throw reason;
+  }
 }
 function loadTaskFlowPackages(input) {
   return submitPackageBatch(input, true);
@@ -149,18 +175,37 @@ async function runQuickWorkflow(input) {
       startError: null
     };
   }
-  if (!input.workflow) throw new Error("Configura Quick Workflow quando Autodownload \xE8 attivo.");
-  const payload = composeQuickWorkflowPayload({
-    ...input.workflow,
-    packageIds: submission.taskflowIds
+  let createdWorkflow;
+  try {
+    if (!input.workflow) throw new Error("Configura Quick Workflow quando Autodownload \xE8 attivo.");
+    const payload = composeQuickWorkflowPayload({
+      ...input.workflow,
+      packageIds: submission.taskflowIds
+    });
+    await emitLog(input.onLogEvent, { phase: "create", kind: "request", payload });
+    createdWorkflow = await input.api.createWorkflow(payload);
+    await emitLog(input.onLogEvent, { phase: "create", kind: "response", payload: createdWorkflow });
+    if (!createdWorkflow.id) throw Object.assign(
+      new Error("TaskFlow ha creato un workflow senza ID valido."),
+      { response: createdWorkflow }
+    );
+  } catch (reason) {
+    await emitLog(input.onLogEvent, { phase: "create", kind: "error", payload: errorPayload(reason) });
+    throw reason;
+  }
+  await emitLog(input.onLogEvent, {
+    phase: "start",
+    kind: "request",
+    payload: null,
+    metadata: { workflowId: createdWorkflow.id }
   });
-  const createdWorkflow = await input.api.createWorkflow(payload);
-  if (!createdWorkflow.id) throw new Error("TaskFlow ha creato un workflow senza ID valido.");
   try {
     const startedWorkflow = await input.api.startWorkflow(createdWorkflow.id);
+    await emitLog(input.onLogEvent, { phase: "start", kind: "response", payload: startedWorkflow });
     return { submission, submissionOnly: false, createdWorkflow, startedWorkflow, startError: null };
   } catch (reason) {
     const startError = reason instanceof Error ? reason : new Error("Impossibile avviare il workflow.");
+    await emitLog(input.onLogEvent, { phase: "start", kind: "error", payload: errorPayload(startError) });
     return { submission, submissionOnly: false, createdWorkflow, startedWorkflow: null, startError };
   }
 }
@@ -420,11 +465,13 @@ async function forwardPageMessage(ownerTabId, request, sendMessage) {
 var TaskFlowHttpError = class extends Error {
   status;
   code;
-  constructor(status, code, message) {
+  response;
+  constructor(status, code, message, response = null) {
     super(message);
     this.name = "TaskFlowHttpError";
     this.status = status;
     this.code = code;
+    this.response = response;
   }
 };
 function isRecord5(value) {
@@ -471,7 +518,8 @@ var TaskFlowClient = class {
       throw new TaskFlowHttpError(
         response.status,
         typeof error.code === "string" ? error.code : "api.request_failed",
-        typeof error.message === "string" ? error.message : `TaskFlow ha risposto HTTP ${response.status}.`
+        typeof error.message === "string" ? error.message : `TaskFlow ha risposto HTTP ${response.status}.`,
+        body
       );
     }
     return body;
@@ -500,7 +548,7 @@ var TaskFlowClient = class {
       body: JSON.stringify(payload)
     });
     if (!isRecord5(raw) || typeof raw.id !== "string" || !raw.id) {
-      throw new Error("Risposta Create di TaskFlow non valida.");
+      throw Object.assign(new Error("Risposta Create di TaskFlow non valida."), { response: raw });
     }
     return raw;
   }
@@ -509,7 +557,7 @@ var TaskFlowClient = class {
       method: "POST"
     });
     if (!isRecord5(raw) || typeof raw.id !== "string" || !raw.id) {
-      throw new Error("Risposta Start di TaskFlow non valida.");
+      throw Object.assign(new Error("Risposta Start di TaskFlow non valida."), { response: raw });
     }
     return raw;
   }
@@ -812,7 +860,98 @@ var MdbListClient = class {
   }
 };
 
+// src/background/quick-workflow-log.ts
+var STORAGE_KEY2 = "jspider.quickWorkflowLog";
+function serializable(value) {
+  const seen = /* @__PURE__ */ new WeakSet();
+  const json = JSON.stringify(value, (_key, candidate2) => {
+    if (typeof candidate2 === "bigint") return candidate2.toString();
+    if (candidate2 !== null && typeof candidate2 === "object") {
+      if (seen.has(candidate2)) return "[Circular]";
+      seen.add(candidate2);
+    }
+    return candidate2;
+  });
+  return json === void 0 ? null : JSON.parse(json);
+}
+function isDocument(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate2 = value;
+  return typeof candidate2.startedAt === "string" && typeof candidate2.updatedAt === "string" && typeof candidate2.runId === "string" && Array.isArray(candidate2.entries);
+}
+var QuickWorkflowLogStore = class {
+  constructor(storage, now = () => (/* @__PURE__ */ new Date()).toISOString(), createRunId = () => crypto.randomUUID()) {
+    this.storage = storage;
+    this.now = now;
+    this.createRunId = createRunId;
+  }
+  storage;
+  now;
+  createRunId;
+  operations = Promise.resolve();
+  serialize(operation) {
+    const result = this.operations.then(operation, operation);
+    this.operations = result.then(() => void 0, () => void 0);
+    return result;
+  }
+  async readDirect() {
+    const result = await this.storage.get(STORAGE_KEY2);
+    return isDocument(result[STORAGE_KEY2]) ? result[STORAGE_KEY2] : null;
+  }
+  start() {
+    const runId = this.createRunId();
+    return this.serialize(async () => {
+      const timestamp = this.now();
+      await this.storage.set({
+        [STORAGE_KEY2]: { runId, startedAt: timestamp, updatedAt: timestamp, entries: [] }
+      });
+      return runId;
+    });
+  }
+  append(event, runId) {
+    return this.serialize(async () => {
+      const timestamp = this.now();
+      const current = await this.readDirect();
+      if (!current || runId !== void 0 && current.runId !== runId) return;
+      const entry = {
+        timestamp,
+        phase: event.phase,
+        kind: event.kind,
+        payload: serializable(event.payload),
+        ...event.metadata ? { metadata: serializable(event.metadata) } : {}
+      };
+      await this.storage.set({
+        [STORAGE_KEY2]: {
+          ...current,
+          updatedAt: timestamp,
+          entries: [...current.entries, entry]
+        }
+      });
+    });
+  }
+  async read() {
+    await this.operations;
+    return this.readDirect();
+  }
+  clear() {
+    return this.serialize(() => this.storage.remove(STORAGE_KEY2));
+  }
+};
+async function handleQuickWorkflowLogAction(action, store) {
+  if (action === "taskflow.quickWorkflowLog.get") return store.read();
+  if (action === "taskflow.quickWorkflowLog.clear") {
+    await store.clear();
+    return { cleared: true };
+  }
+  return void 0;
+}
+
 // src/background/index.ts
+var quickWorkflowLog = new QuickWorkflowLogStore({
+  get: (key) => chrome.storage.local.get(key),
+  set: (items) => chrome.storage.local.set(items),
+  remove: (key) => chrome.storage.local.remove(key)
+});
 chrome.action.onClicked.addListener((tab) => {
   void handleActionClick(tab, {
     sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message)
@@ -822,10 +961,17 @@ function serializeError(reason) {
   if (reason instanceof SubmissionBatchError) {
     return { name: reason.name, message: reason.message, analysis: reason.analysis };
   }
-  return {
+  const serialized = {
     name: reason instanceof Error ? reason.name : "Error",
     message: reason instanceof Error ? reason.message : "Operazione non riuscita."
   };
+  if (reason !== null && typeof reason === "object") {
+    const record2 = reason;
+    for (const key of ["status", "code", "details"]) {
+      if (record2[key] !== void 0) serialized[key] = record2[key];
+    }
+  }
+  return serialized;
 }
 async function handle(message, sender) {
   if (message.target !== "background") throw new Error("Destinazione messaggio non valida.");
@@ -836,6 +982,9 @@ async function handle(message, sender) {
       request,
       (tabId, pageMessage) => chrome.tabs.sendMessage(tabId, pageMessage)
     );
+  }
+  if (message.action === "taskflow.quickWorkflowLog.get" || message.action === "taskflow.quickWorkflowLog.clear") {
+    return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
   if (message.action === "settings.get") return settingsSummary();
   if (message.action === "settings.save") {
@@ -851,6 +1000,55 @@ async function handle(message, sender) {
     if (!emby.baseUrl || !emby.token) throw new Error("Emby non configurato in config.local.json.");
     return new EmbyClient(emby.baseUrl, emby.token).lookup(message.input);
   }
+  if (message.action === "taskflow.quickWorkflow") {
+    let logRunId = null;
+    try {
+      logRunId = await quickWorkflowLog.start();
+    } catch {
+    }
+    const appendLog = async (event) => {
+      if (!logRunId) return;
+      try {
+        await quickWorkflowLog.append(event, logRunId);
+      } catch {
+      }
+    };
+    let pipelineStarted = false;
+    try {
+      if (!Array.isArray(message.variants) || !Array.isArray(message.hosts) || typeof message.autodownload !== "boolean" || message.autodownload && (!message.workflow || typeof message.workflow !== "object")) {
+        throw new Error("Dati Quick Workflow non validi.");
+      }
+      if (message.autodownload) {
+        requireQuickWorkflowPreset(
+          message.workflow.preset
+        );
+      }
+      const settings2 = await loadSettings();
+      const taskflow2 = new TaskFlowClient(settings2.taskflowBaseUrl, settings2.taskflowToken);
+      const integrationId = await taskflow2.discoverJDownloaderIntegration();
+      pipelineStarted = true;
+      return await runQuickWorkflow({
+        api: taskflow2,
+        integrationId,
+        variants: message.variants,
+        hosts: message.hosts,
+        autodownload: message.autodownload,
+        onLogEvent: appendLog,
+        ...message.autodownload ? {
+          workflow: message.workflow
+        } : {}
+      });
+    } catch (reason) {
+      if (!pipelineStarted) {
+        await appendLog({
+          phase: "submission",
+          kind: "error",
+          payload: serializeError(reason)
+        });
+      }
+      throw reason;
+    }
+  }
   const settings = await loadSettings();
   if (message.action === "tmdb.search") {
     const client = new TmdbClient(settings.tmdbCredential);
@@ -862,28 +1060,6 @@ async function handle(message, sender) {
   const taskflow = new TaskFlowClient(settings.taskflowBaseUrl, settings.taskflowToken);
   if (message.action === "taskflow.catalog") {
     return { presets: await taskflow.getPresets() };
-  }
-  if (message.action === "taskflow.quickWorkflow") {
-    if (!Array.isArray(message.variants) || !Array.isArray(message.hosts) || typeof message.autodownload !== "boolean" || message.autodownload && (!message.workflow || typeof message.workflow !== "object")) {
-      throw new Error("Dati Quick Workflow non validi.");
-    }
-    if (message.autodownload) {
-      requireQuickWorkflowPreset(
-        message.workflow.preset
-      );
-    }
-    const variants = message.variants;
-    const integrationId = await taskflow.discoverJDownloaderIntegration();
-    return runQuickWorkflow({
-      api: taskflow,
-      integrationId,
-      variants,
-      hosts: message.hosts,
-      autodownload: message.autodownload,
-      ...message.autodownload ? {
-        workflow: message.workflow
-      } : {}
-    });
   }
   if (message.action === "taskflow.loadPackages") {
     if (!Array.isArray(message.variants) || !Array.isArray(message.hosts)) {

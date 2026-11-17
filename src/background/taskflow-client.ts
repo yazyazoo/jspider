@@ -7,12 +7,14 @@ type Fetcher = (request: Request) => Promise<Response>;
 export class TaskFlowHttpError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly response: unknown;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, response: unknown = null) {
     super(message);
     this.name = 'TaskFlowHttpError';
     this.status = status;
     this.code = code;
+    this.response = response;
   }
 }
 
@@ -59,6 +61,7 @@ export class TaskFlowClient implements TaskFlowPipelineApi {
         response.status,
         typeof error.code === 'string' ? error.code : 'api.request_failed',
         typeof error.message === 'string' ? error.message : `TaskFlow ha risposto HTTP ${response.status}.`,
+        body,
       );
     }
     return body;
@@ -90,7 +93,7 @@ export class TaskFlowClient implements TaskFlowPipelineApi {
       method: 'POST', body: JSON.stringify(payload),
     });
     if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) {
-      throw new Error('Risposta Create di TaskFlow non valida.');
+      throw Object.assign(new Error('Risposta Create di TaskFlow non valida.'), { response: raw });
     }
     return raw as WorkflowRecord;
   }
@@ -100,7 +103,7 @@ export class TaskFlowClient implements TaskFlowPipelineApi {
       method: 'POST',
     });
     if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) {
-      throw new Error('Risposta Start di TaskFlow non valida.');
+      throw Object.assign(new Error('Risposta Start di TaskFlow non valida.'), { response: raw });
     }
     return raw as WorkflowRecord;
   }

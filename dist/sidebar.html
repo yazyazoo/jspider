@@ -11,6 +11,7 @@
     <div class="brand-block"><span class="eyebrow"><span id="source-name">SITO</span> → TASKFLOW</span><h1>JSpider<span class="dot">.</span></h1></div>
     <div id="header-actions" class="header-actions">
       <label id="overlay-width-control" class="width-control" hidden><span>Larghezza</span><select id="overlay-width" aria-label="Larghezza pannello JSpider"><option value="420">420 px</option><option value="520">520 px</option><option value="650" selected>650 px</option><option value="780">780 px</option><option value="900">900 px</option></select></label>
+      <button id="quick-log-button" class="quiet" type="button" aria-expanded="false" aria-controls="quick-log-panel">Log JSON</button>
       <button id="settings-button" class="quiet" type="button" aria-expanded="false" aria-controls="settings-panel">Impostazioni</button>
       <button id="refresh" class="quiet" type="button">Aggiorna pagina</button>
     </div>
@@ -30,6 +31,15 @@
       </form>
       <p id="settings-state" class="muted small"></p>
       <p class="attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    </div>
+    <div id="quick-log-panel" class="settings-popover log-popover" role="dialog" aria-label="Log JSON Quick Workflow" hidden>
+      <div class="quick-log-heading"><strong>Log Quick Workflow</strong><span>Ultima esecuzione</span></div>
+      <p id="quick-log-state" class="muted small"></p>
+      <div id="quick-log-entries" class="quick-log-entries"></div>
+      <div class="quick-log-actions">
+        <button id="quick-log-copy" type="button">Copia tutto</button>
+        <button id="quick-log-clear" class="secondary" type="button">Svuota</button>
+      </div>
     </div>
   </header>
   <main>

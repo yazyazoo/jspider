@@ -368,9 +368,9 @@ function positionTooltip(trigger, tooltip) {
   const bounds = trigger.getBoundingClientRect();
   const tooltipBounds = tooltip.getBoundingClientRect();
   const viewport = trigger.ownerDocument.documentElement;
-  const window = trigger.ownerDocument.defaultView;
-  const viewportWidth = viewport.clientWidth || window?.innerWidth || 0;
-  const viewportHeight = viewport.clientHeight || window?.innerHeight || 0;
+  const window2 = trigger.ownerDocument.defaultView;
+  const viewportWidth = viewport.clientWidth || window2?.innerWidth || 0;
+  const viewportHeight = viewport.clientHeight || window2?.innerHeight || 0;
   const maxLeft = Math.max(margin, viewportWidth - tooltipBounds.width - margin);
   const left = Math.min(Math.max(bounds.left, margin), maxLeft);
   const below = bounds.bottom + gap;
@@ -785,6 +785,88 @@ function renderEmbyStatus(container, status2) {
   container.append(label);
 }
 
+// src/sidebar/quick-workflow-log.ts
+var phaseLabel = { submission: "Submission", create: "Create", start: "Start" };
+var kindLabel = { request: "richiesta", response: "risposta", error: "errore" };
+function copyText(value, root = document, execute = (command) => root.execCommand(command)) {
+  const source = root.createElement("textarea");
+  source.dataset.quickLogCopySource = "";
+  source.value = value;
+  source.setAttribute("readonly", "");
+  source.style.position = "fixed";
+  source.style.opacity = "0";
+  root.body.append(source);
+  source.select();
+  try {
+    return execute("copy");
+  } finally {
+    source.remove();
+  }
+}
+function renderQuickWorkflowLog(view, log) {
+  view.entries.replaceChildren();
+  view.copyButton.disabled = log === null;
+  view.clearButton.disabled = log === null;
+  if (!log) {
+    view.state.textContent = "Nessuna esecuzione Quick Workflow registrata.";
+    return;
+  }
+  view.state.textContent = log.entries.length ? `Ultima esecuzione: ${new Date(log.startedAt).toLocaleString("it-IT")}` : "Quick Workflow avviato; in attesa del primo JSON.";
+  for (const entry of log.entries) {
+    const details = document.createElement("details");
+    details.className = "quick-log-entry";
+    if (entry.kind === "error") {
+      details.classList.add("error");
+      details.open = true;
+    }
+    const summary = document.createElement("summary");
+    const time = new Date(entry.timestamp).toLocaleTimeString("it-IT");
+    summary.textContent = `${phaseLabel[entry.phase]} \xB7 ${kindLabel[entry.kind]} \xB7 ${time}`;
+    const json = document.createElement("pre");
+    json.textContent = JSON.stringify(
+      entry.metadata ? { metadata: entry.metadata, body: entry.payload } : entry.payload,
+      null,
+      2
+    );
+    details.append(summary, json);
+    view.entries.append(details);
+  }
+}
+function initializeQuickWorkflowLog(view, dependencies) {
+  let current = null;
+  const refresh = async () => {
+    current = await dependencies.load();
+    renderQuickWorkflowLog(view, current);
+  };
+  const copy = async () => {
+    if (!current) return;
+    await dependencies.copy(JSON.stringify(current, null, 2));
+  };
+  const clear = async () => {
+    await dependencies.clear();
+    current = null;
+    renderQuickWorkflowLog(view, null);
+  };
+  const copyClick = () => {
+    void copy();
+  };
+  const clearClick = () => {
+    void clear();
+  };
+  view.copyButton.addEventListener("click", copyClick);
+  view.clearButton.addEventListener("click", clearClick);
+  renderQuickWorkflowLog(view, null);
+  return {
+    refresh,
+    copy,
+    clear,
+    dispose() {
+      view.copyButton.removeEventListener("click", copyClick);
+      view.clearButton.removeEventListener("click", clearClick);
+    }
+  };
+}
+
 // src/sidebar/index.ts
 var element = (id) => document.getElementById(id);
 var input = (id) => element(id);
@@ -809,6 +891,33 @@ initializeDismissiblePopover(
   element("settings-panel"),
   document
 );
+var quickLogButton = element("quick-log-button");
+initializeDismissiblePopover(
+  quickLogButton,
+  element("quick-log-panel"),
+  document
+);
+var quickLog = initializeQuickWorkflowLog({
+  state: element("quick-log-state"),
+  entries: element("quick-log-entries"),
+  copyButton: element("quick-log-copy"),
+  clearButton: element("quick-log-clear")
+}, {
+  load: () => background("taskflow.quickWorkflowLog.get"),
+  async clear() {
+    await background("taskflow.quickWorkflowLog.clear");
+  },
+  async copy(value) {
+    if (!copyText(value)) window.prompt("Copia il log JSON Quick Workflow", value);
+  }
+});
+var refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
+  element("quick-log-state").textContent = reason instanceof Error ? reason.message : "Log Quick Workflow non disponibile.";
+});
+quickLogButton.addEventListener("click", refreshQuickLog);
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes["jspider.quickWorkflowLog"]) refreshQuickLog();
+});
 initializeFullWebUiToggle({
   home: element("home-view"),
   panel: element("taskflow-full-panel"),

@@ -39,8 +39,12 @@ describe('sidebar fallback action', () => {
     const actions = document.querySelector('#header-actions');
     expect(actions?.querySelector('#overlay-width-control')).not.toBeNull();
     expect(actions?.querySelector('#settings-button')?.textContent).toBe('Impostazioni');
+    expect(actions?.querySelector('#quick-log-button')?.textContent).toBe('Log JSON');
     expect(actions?.querySelector('#refresh')).not.toBeNull();
     expect(document.querySelector('#settings-panel form#settings-form')).not.toBeNull();
+    expect(document.querySelector('#quick-log-panel #quick-log-entries')).not.toBeNull();
+    expect(document.querySelector('#quick-log-copy')?.textContent).toBe('Copia tutto');
+    expect(document.querySelector('#quick-log-clear')?.textContent).toBe('Svuota');
     expect(document.querySelector('details#settings')).toBeNull();
   });
 

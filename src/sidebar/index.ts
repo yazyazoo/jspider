@@ -47,6 +47,11 @@ import { resolvePresetCleanup, type CleanupPreset } from './preset-cleanup';
 import type { EmbyLookupInput, EmbyPresenceResult } from '../domain/emby';
 import { renderEmbyStatus } from './emby-status';
 import type { MediaRatings } from '../domain/media-ratings';
+import {
+  copyText,
+  initializeQuickWorkflowLog,
+} from './quick-workflow-log';
+import type { QuickWorkflowLogDocument } from '../background/quick-workflow-log';
 
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
@@ -74,6 +79,32 @@ initializeDismissiblePopover(
   element('settings-panel'),
   document,
 );
+const quickLogButton = element<HTMLButtonElement>('quick-log-button');
+initializeDismissiblePopover(
+  quickLogButton,
+  element('quick-log-panel'),
+  document,
+);
+const quickLog = initializeQuickWorkflowLog({
+  state: element('quick-log-state'),
+  entries: element('quick-log-entries'),
+  copyButton: element<HTMLButtonElement>('quick-log-copy'),
+  clearButton: element<HTMLButtonElement>('quick-log-clear'),
+}, {
+  load: () => background<QuickWorkflowLogDocument | null>('taskflow.quickWorkflowLog.get'),
+  async clear() { await background('taskflow.quickWorkflowLog.clear'); },
+  async copy(value) {
+    if (!copyText(value)) window.prompt('Copia il log JSON Quick Workflow', value);
+  },
+});
+const refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
+  element('quick-log-state').textContent = reason instanceof Error
+    ? reason.message : 'Log Quick Workflow non disponibile.';
+});
+quickLogButton.addEventListener('click', refreshQuickLog);
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes['jspider.quickWorkflowLog']) refreshQuickLog();
+});
 initializeFullWebUiToggle({
   home: element('home-view'),
   panel: element('taskflow-full-panel'),

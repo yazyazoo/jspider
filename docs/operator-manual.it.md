@@ -34,6 +34,7 @@ package.
 La barra del titolo contiene:
 
 - **Larghezza**: sceglie una delle cinque larghezze dell’overlay portabile.
+- **Log JSON**: apre il registro locale dell’ultima esecuzione Quick Workflow.
 - **Impostazioni**: apre i campi di collegamento TaskFlow, TMDB, OMDb e MDBList.
 - **Aggiorna pagina**: rilegge la scheda corrente e le relative versioni.
 
@@ -176,6 +177,20 @@ Non fare un secondo clic mentre il messaggio indica che l’operazione è in
 corso. Se Create riesce ma Start fallisce, usa la WebUI TaskFlow per ripetere
 soltanto **Start**, senza reinviare i package.
 
+#### Log JSON Quick Workflow
+
+Il pulsante **Log JSON** nella barra titolo conserva e mostra soltanto l’ultima
+esecuzione Quick Workflow. Le sezioni espandibili vengono aggiunte in ordine:
+richiesta e risposta Submission, richiesta e risposta Create, richiesta e
+risposta Start. Un errore viene registrato nella fase esatta con i dettagli
+strutturati restituiti.
+
+Il log si aggiorna durante l’esecuzione, sopravvive alla chiusura della sidebar
+e non viene cancellato aprendo la WebUI. **Copia tutto** copia il documento JSON
+completo; **Svuota** lo elimina dallo storage locale. Il contenuto è volutamente
+in chiaro e può includere link, password RAR, nomi e identificatori. Token,
+chiavi API e header HTTP non vengono aggiunti al log.
+
 ### TaskFlow
 
 Questo ramo lascia la creazione sotto il controllo della WebUI TaskFlow
@@ -201,6 +216,8 @@ preset, ordine task, JSON dei task, cleanup e azione finale Create/Start.
 
 ## Gestione sicura degli errori
 
+- **Errore Quick Workflow**: apri **Log JSON** prima di ripetere l’operazione e
+  controlla l’ultima fase registrata e la relativa risposta.
 - **Submission non confermata**: non ripetere immediatamente l’azione. Il
   package potrebbe essere già visibile in JD anche se TaskFlow non è riuscito a
   confermarlo e persisterlo. Controlla prima JD e l’elenco package TaskFlow.
