@@ -3,6 +3,13 @@ var DATABASE_NAME = "jspider-local-files";
 var DATABASE_VERSION = 1;
 var STORE_NAME = "handles";
 var DIRECTORY_KEY = "quick-workflow-log-directory";
+async function readDirectoryPermission(handle) {
+  try {
+    return await handle.queryPermission({ mode: "readwrite" });
+  } catch {
+    return "unknown";
+  }
+}
 function request(operation) {
   return new Promise((resolve, reject) => {
     operation.onsuccess = () => resolve(operation.result);
@@ -60,7 +67,7 @@ var LogDirectoryRepository = class {
     return {
       configured: true,
       name: handle.name,
-      permission: await handle.queryPermission({ mode: "readwrite" })
+      permission: await readDirectoryPermission(handle)
     };
   }
 };
@@ -116,7 +123,7 @@ if (typeof pickerWindow.showDirectoryPicker !== "function") {
   });
   void repository.status().then((status) => {
     if (status.configured && status.name) {
-      state.textContent = status.permission === "granted" ? `Cartella attuale: \u201C${status.name}\u201D.` : `La cartella \u201C${status.name}\u201D richiede una nuova autorizzazione.`;
+      state.textContent = status.permission === "prompt" || status.permission === "denied" ? `La cartella \u201C${status.name}\u201D richiede una nuova autorizzazione.` : `Cartella attuale: \u201C${status.name}\u201D.`;
     }
   }).catch(() => void 0);
 }

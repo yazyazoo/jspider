@@ -865,6 +865,13 @@ var DATABASE_NAME = "jspider-local-files";
 var DATABASE_VERSION = 1;
 var STORE_NAME = "handles";
 var DIRECTORY_KEY = "quick-workflow-log-directory";
+async function readDirectoryPermission(handle2) {
+  try {
+    return await handle2.queryPermission({ mode: "readwrite" });
+  } catch {
+    return "unknown";
+  }
+}
 function request(operation) {
   return new Promise((resolve, reject) => {
     operation.onsuccess = () => resolve(operation.result);
@@ -922,7 +929,7 @@ var LogDirectoryRepository = class {
     return {
       configured: true,
       name: handle2.name,
-      permission: await handle2.queryPermission({ mode: "readwrite" })
+      permission: await readDirectoryPermission(handle2)
     };
   }
 };
@@ -951,7 +958,9 @@ var QuickWorkflowFileWriter = class {
   repository;
   async write(document) {
     const directory = await this.repository.load();
-    if (!directory || await directory.queryPermission({ mode: "readwrite" }) !== "granted") {
+    if (!directory) return false;
+    const permission = await readDirectoryPermission(directory);
+    if (permission !== "granted" && permission !== "unknown") {
       return false;
     }
     const file = await directory.getFileHandle(document.fileName, { create: true });

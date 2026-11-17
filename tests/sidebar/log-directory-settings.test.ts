@@ -26,6 +26,10 @@ describe('log directory settings', () => {
 
     renderLogDirectoryStatus(view, { configured: true, name: 'log', permission: 'prompt' });
     expect(view.state.textContent).toBe('log · autorizzazione da rinnovare');
+
+    renderLogDirectoryStatus(view, { configured: true, name: 'log', permission: 'unknown' });
+    expect(view.state.textContent).toBe('log · cartella salvata');
+    expect(view.chooseButton.textContent).toBe('Cambia cartella');
   });
 
   it('opens the authorization page and can refresh the current status', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createWorkflowLogFilename,
+  readDirectoryPermission,
   QuickWorkflowFileWriter,
   waitForTransaction,
   type LogDirectoryRepositoryLike,
@@ -71,6 +72,35 @@ describe('Quick Workflow log directory', () => {
     expect(JSON.parse(contents)).toEqual(document());
     expect(contents.endsWith('\n')).toBe(true);
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a saved directory configured when Chromium cannot query its permission', async () => {
+    const directory = {
+      name: 'log',
+      async queryPermission() { throw new TypeError('queryPermission is unavailable'); },
+    };
+
+    await expect(readDirectoryPermission(directory as never)).resolves.toBe('unknown');
+  });
+
+  it('tries the saved handle when only the permission query is unavailable', async () => {
+    const getFileHandle = vi.fn(async () => ({
+      async createWritable() {
+        return { async write() {}, async close() {} };
+      },
+    }));
+    const writer = new QuickWorkflowFileWriter({
+      async load() {
+        return {
+          name: 'log',
+          async queryPermission() { throw new TypeError('queryPermission is unavailable'); },
+          getFileHandle,
+        } as never;
+      },
+    });
+
+    await expect(writer.write(document())).resolves.toBe(true);
+    expect(getFileHandle).toHaveBeenCalledOnce();
   });
 
   it('does not write when no folder is configured or its permission expired', async () => {

@@ -29,9 +29,9 @@ if (typeof pickerWindow.showDirectoryPicker !== 'function') {
   });
   void repository.status().then((status) => {
     if (status.configured && status.name) {
-      state.textContent = status.permission === 'granted'
-        ? `Cartella attuale: “${status.name}”.`
-        : `La cartella “${status.name}” richiede una nuova autorizzazione.`;
+      state.textContent = status.permission === 'prompt' || status.permission === 'denied'
+        ? `La cartella “${status.name}” richiede una nuova autorizzazione.`
+        : `Cartella attuale: “${status.name}”.`;
     }
   }).catch(() => undefined);
 }

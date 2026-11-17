@@ -875,7 +875,7 @@ function renderLogDirectoryStatus(view, status2) {
     return;
   }
   view.chooseButton.textContent = "Cambia cartella";
-  view.state.textContent = status2.permission === "granted" ? `${status2.name} \xB7 scrittura autorizzata` : `${status2.name} \xB7 autorizzazione da rinnovare`;
+  view.state.textContent = status2.permission === "granted" ? `${status2.name} \xB7 scrittura autorizzata` : status2.permission === "unknown" ? `${status2.name} \xB7 cartella salvata` : `${status2.name} \xB7 autorizzazione da rinnovare`;
 }
 function initializeLogDirectorySettings(view, dependencies) {
   const refresh = async () => {

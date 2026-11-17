@@ -20,7 +20,9 @@ export function renderLogDirectoryStatus(
   view.chooseButton.textContent = 'Cambia cartella';
   view.state.textContent = status.permission === 'granted'
     ? `${status.name} · scrittura autorizzata`
-    : `${status.name} · autorizzazione da rinnovare`;
+    : status.permission === 'unknown'
+      ? `${status.name} · cartella salvata`
+      : `${status.name} · autorizzazione da rinnovare`;
 }
 export function initializeLogDirectorySettings(
   view: LogDirectorySettingsView,

@@ -17,7 +17,17 @@ export interface LogDirectoryRepositoryLike {
 export interface LogDirectoryStatus {
   configured: boolean;
   name: string | null;
-  permission: PermissionState | 'missing';
+  permission: PermissionState | 'missing' | 'unknown';
+}
+
+export async function readDirectoryPermission(
+  handle: WritableDirectoryHandle,
+): Promise<PermissionState | 'unknown'> {
+  try {
+    return await handle.queryPermission({ mode: 'readwrite' });
+  } catch {
+    return 'unknown';
+  }
 }
 function request<T>(operation: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -78,7 +88,7 @@ export class LogDirectoryRepository implements LogDirectoryRepositoryLike {
     return {
       configured: true,
       name: handle.name,
-      permission: await handle.queryPermission({ mode: 'readwrite' }),
+      permission: await readDirectoryPermission(handle),
     };
   }
 }
@@ -106,7 +116,9 @@ export class QuickWorkflowFileWriter {
 
   async write(document: QuickWorkflowLogDocument): Promise<boolean> {
     const directory = await this.repository.load();
-    if (!directory || await directory.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+    if (!directory) return false;
+    const permission = await readDirectoryPermission(directory);
+    if (permission !== 'granted' && permission !== 'unknown') {
       return false;
     }
     const file = await directory.getFileHandle(document.fileName, { create: true });
