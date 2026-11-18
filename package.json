@@ -9,6 +9,7 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "update:webui": "node scripts/update-taskflow-webui.mjs",
     "verify": "npm run check && npm test && npm run audit:legacy && npm run build",
     "package:extension": "npm run verify && node scripts/package-extension.mjs",
     "audit:legacy": "node scripts/audit-legacy.mjs"

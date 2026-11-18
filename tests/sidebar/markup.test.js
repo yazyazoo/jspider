@@ -45,6 +45,15 @@ describe('sidebar fallback action', () => {
     expect(document.querySelector('#settings-panel #log-directory-state')).not.toBeNull();
     expect(document.querySelector('#settings-panel #log-directory-choose')?.textContent)
       .toBe('Scegli cartella log');
+    expect(document.querySelector('#settings-panel #webui-version-check')?.textContent)
+      .toBe('Controlla aggiornamenti WebUI');
+    expect(document.querySelector('#settings-panel #webui-version-state')).not.toBeNull();
+    expect(document.querySelector('#tip-webui-version')?.textContent)
+      .toContain('Aggiorna-WebUI.cmd');
+    expect(document.querySelector('#tip-webui-version')?.textContent)
+      .toContain('Aggiorna-WebUI.command');
+    expect(document.querySelector('#tip-webui-version')?.textContent)
+      .toContain('test e build');
     expect(document.querySelector('#quick-log-panel #quick-log-entries')).not.toBeNull();
     expect(document.querySelector('#quick-log-copy')?.textContent).toBe('Copia tutto');
     expect(document.querySelector('#quick-log-clear')?.textContent).toBe('Svuota');

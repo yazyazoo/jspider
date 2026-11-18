@@ -32,6 +32,11 @@
           <p id="log-directory-state" class="muted small">Nessuna cartella log configurata.</p>
           <button id="log-directory-choose" class="secondary" type="button">Scegli cartella log</button>
         </div>
+        <div class="webui-version-setting spaced">
+          <div class="label-info"><strong>WebUI TaskFlow</strong><button type="button" class="info-button" data-tooltip aria-describedby="tip-webui-version" aria-label="Informazioni sull’aggiornamento WebUI">i</button><span id="tip-webui-version" role="tooltip" hidden>JSpider può controllare la versione, ma Chromium non può avviare test e build. Per aggiornare usa Aggiorna-WebUI.cmd su Windows oppure Aggiorna-WebUI.command su macOS dalla root della repository.</span></div>
+          <p id="webui-version-state" class="muted small" aria-live="polite">Controllo non eseguito.</p>
+          <button id="webui-version-check" class="secondary" type="button">Controlla aggiornamenti WebUI</button>
+        </div>
         <button type="submit" class="settings-save">Salva collegamenti</button>
       </form>
       <p id="settings-state" class="muted small"></p>

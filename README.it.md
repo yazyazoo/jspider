@@ -49,6 +49,13 @@ come estensione non pacchettizzata; non caricare la radice della repository.
 Quando esiste `config.local.json` nella radice, la build locale lo copia in
 `dist/`, ma quella configurazione locale rimane esclusa da Git.
 
+JSpider incorpora una revisione verificata della WebUI TaskFlow per mantenere
+compatibile con Manifest V3 il ramo TaskFlow Create precompilato. Le
+impostazioni possono controllare se esiste un componente pubblico più recente.
+Per aggiornarlo fai doppio clic su `Aggiorna-WebUI.cmd` in Windows oppure su
+`Aggiorna-WebUI.command` in macOS: il terminale mostra l’avanzamento complessivo
+di download, validazione, test e build.
+
 Per creare lo stesso ZIP privo di segreti usato dalle Release:
 
 ```powershell

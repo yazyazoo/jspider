@@ -54,6 +54,10 @@ import {
 import type { QuickWorkflowLogDocument } from '../background/quick-workflow-log';
 import { initializeLogDirectorySettings } from './log-directory-settings';
 import type { LogDirectoryStatus } from '../background/log-directory';
+import {
+  initializeWebUiVersionCheck,
+  type TaskFlowWebUiVersion,
+} from './webui-version';
 
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
@@ -85,6 +89,18 @@ initializeDismissiblePopover(
   element('settings-panel'),
   document,
 );
+initializeWebUiVersionCheck({
+  button: element<HTMLButtonElement>('webui-version-check'),
+  state: element('webui-version-state'),
+}, {
+  async loadEmbedded() {
+    const response = await fetch(chrome.runtime.getURL('taskflow-ui-version.json'), {
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`metadati incorporati HTTP ${response.status}`);
+    return response.json() as Promise<TaskFlowWebUiVersion>;
+  },
+});
 const quickLogButton = element<HTMLButtonElement>('quick-log-button');
 const logDirectorySettings = initializeLogDirectorySettings({
   state: element('log-directory-state'),

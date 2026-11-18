@@ -27,6 +27,25 @@ npm run audit:legacy
 npm run build
 ```
 
+## Aggiornare la WebUI TaskFlow incorporata
+
+Il pannello impostazioni può confrontare lo SHA-256 incorporato con il
+componente pubblico TaskFlow, ma un’estensione Chromium non può avviare npm né
+riscrivere i propri file installati. Usa quindi il launcher nella radice della
+repository:
+
+- Windows: doppio clic su `Aggiorna-WebUI.cmd`;
+- macOS: doppio clic su `Aggiorna-WebUI.command`.
+
+Entrambi eseguono `npm run update:webui`. Il terminale mostra l’avanzamento per
+download, validazione del contratto, TypeScript, suite completa dei test, audit
+legacy e build di `dist`. L’updater registra ETag, Last-Modified e SHA-256 in
+`vendor/taskflow-ui/version.json`. Se il candidato o una verifica falliscono,
+ripristina il bundle precedente e ricostruisce la precedente `dist`.
+
+Dopo un aggiornamento riuscito, ricarica JSpider dalla pagina delle estensioni
+Chromium.
+
 ## Caricare l’estensione
 
 L’output della build è `JSpider/dist`. Apri la pagina delle estensioni del

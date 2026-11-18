@@ -39,6 +39,7 @@ await Promise.all([
   copyFile(resolve(root, 'src/log-directory/log-directory.html'), resolve(output, 'log-directory.html')),
   copyFile(resolve(root, 'src/log-directory/log-directory.css'), resolve(output, 'log-directory.css')),
   copyFile(resolve(root, 'vendor/taskflow-ui/taskflow-ui.es.js'), resolve(output, 'taskflow-ui.es.js')),
+  copyFile(resolve(root, 'vendor/taskflow-ui/version.json'), resolve(output, 'taskflow-ui-version.json')),
   copyFile(resolve(root, 'vendor/taskflow-ui/LICENSE'), resolve(output, 'TASKFLOW-WEBUI-LICENSE')),
   copyFile(resolve(root, 'LICENSE'), resolve(output, 'LICENSE')),
   copyFile(resolve(root, 'NOTICE'), resolve(output, 'NOTICE')),

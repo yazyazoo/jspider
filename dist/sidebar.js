@@ -977,6 +977,58 @@ function initializeLogDirectorySettings(view, dependencies) {
   };
 }
 
+// src/sidebar/webui-version.ts
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", value);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+async function checkTaskFlowWebUiVersion(embedded, fetcher = fetch) {
+  const response = await fetcher(embedded.source, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const liveSha256 = await sha256Hex(await response.arrayBuffer());
+  return {
+    state: liveSha256 === embedded.sha256 ? "current" : "update-available",
+    liveSha256,
+    etag: response.headers.get("etag"),
+    lastModified: response.headers.get("last-modified")
+  };
+}
+function initializeWebUiVersionCheck(view, dependencies) {
+  let disposed = false;
+  const refresh = async () => {
+    view.button.disabled = true;
+    view.state.classList.remove("error-text");
+    view.state.textContent = "Controllo versione WebUI in corso\u2026";
+    try {
+      const embedded = await dependencies.loadEmbedded();
+      const result = await (dependencies.check ?? checkTaskFlowWebUiVersion)(embedded);
+      if (disposed) return;
+      const shortHash = result.liveSha256.slice(0, 12);
+      view.state.textContent = result.state === "current" ? `WebUI TaskFlow aggiornata \xB7 ${shortHash}` : `Aggiornamento disponibile \xB7 esegui Aggiorna-WebUI.cmd su Windows oppure Aggiorna-WebUI.command su macOS dalla root JSpider.`;
+    } catch (reason) {
+      if (disposed) return;
+      const message = reason instanceof Error ? reason.message : "errore sconosciuto";
+      view.state.textContent = `Versione WebUI non verificabile: ${message}`;
+      view.state.classList.add("error-text");
+    } finally {
+      if (!disposed) view.button.disabled = false;
+    }
+  };
+  const click = () => {
+    void refresh();
+  };
+  view.button.addEventListener("click", click);
+  return {
+    refresh,
+    dispose() {
+      disposed = true;
+      view.button.removeEventListener("click", click);
+    }
+  };
+}
+
 // src/sidebar/index.ts
 var element = (id) => document.getElementById(id);
 var input = (id) => element(id);
@@ -1005,6 +1057,18 @@ initializeDismissiblePopover(
   element("settings-panel"),
   document
 );
+initializeWebUiVersionCheck({
+  button: element("webui-version-check"),
+  state: element("webui-version-state")
+}, {
+  async loadEmbedded() {
+    const response = await fetch(chrome.runtime.getURL("taskflow-ui-version.json"), {
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error(`metadati incorporati HTTP ${response.status}`);
+    return response.json();
+  }
+});
 var quickLogButton = element("quick-log-button");
 var logDirectorySettings = initializeLogDirectorySettings({
   state: element("log-directory-state"),

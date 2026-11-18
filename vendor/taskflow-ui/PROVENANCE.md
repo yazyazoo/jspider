@@ -1,15 +1,17 @@
 # TaskFlow WebUI bundle
 
 - Source repository: `https://github.com/redprimrose-org/taskflow`
-- Deployment snapshot: `https://taskflow.redprimrose.mov/ui/assets/index-CSPlTJzX.js`
-- Source revision: not exposed by the deployed artifact
+- Live component: `https://taskflow.redprimrose.mov/ui/taskflow-ui.es.js`
+- Reviewed revision metadata: `version.json`
+- Source revision: identified by ETag, Last-Modified and SHA-256 in `version.json`
 - Expected source path: `webui/dist/taskflow-ui.es.js`
-- SHA-256: `797a339d0af2d1c64c548bb0eac4f0e8f8c3f422ffd643ce2a2fe58893d82b95`
 - License: MIT, reproduced in `LICENSE`
-- Vendored on: 2026-11-14
+- First vendored on: 2026-11-14
 
 The bundle is included locally so Manifest V3 never executes remote JavaScript.
-Refresh it only from a reviewed TaskFlow revision and rerun the JSpider build and tests.
+Refresh it with `npm run update:webui`. The updater validates the integration
+contract, runs the complete JSpider verification, rebuilds `dist`, and restores
+the previous revision if verification fails.
 
 JSpider does not modify this bundle. Its local `taskflow-create-bridge.ts`
 adapter seeds the existing Create state after a successful TaskFlow submission.
