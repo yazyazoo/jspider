@@ -26,6 +26,12 @@ describe('responsive sidebar layout', () => {
     expect(css).toMatch(/\.rating-logo\s*\{[^}]*object-fit:\s*contain/s);
   });
 
+  it('lets the awards badge use a full row and wrap long text', () => {
+    expect(css).toMatch(/\.rating-awards\s*\{[^}]*width:\s*100%/s);
+    expect(css).toMatch(/\.rating-awards \.rating-value\s*\{[^}]*white-space:\s*normal/s);
+    expect(css).not.toMatch(/\.rating-awards \.rating-value\s*\{[^}]*text-overflow:\s*ellipsis/s);
+  });
+
   it('uses the poster height efficiently and clamps long overviews to three lines', () => {
     expect(css).toMatch(/\.candidate\s*\{[^}]*grid-template-columns:\s*96px\s+minmax\(0,\s*1fr\)/s);
     expect(css).toMatch(/\.candidate-overview\s*\{[^}]*-webkit-line-clamp:\s*3/s);

@@ -609,7 +609,16 @@ var TmdbClient = class {
 
 // src/domain/emby.ts
 function fileStem(path) {
-  const file = path.trim().split(/[\\/]/).filter(Boolean).at(-1) ?? "";
+  const value = path.trim();
+  let source = value;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      source = decodeURIComponent(new URL(value).pathname);
+    } catch {
+      source = value.split("#", 1)[0] ?? value;
+    }
+  }
+  const file = source.split(/[\\/]/).filter(Boolean).at(-1) ?? "";
   return file.replace(/\.[^.\\/]+$/, "");
 }
 function normalizedTitle(value) {

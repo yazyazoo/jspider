@@ -27,6 +27,12 @@ describe('Emby presence resolver', () => {
     expect(fileStem('/media/Film.Name.1080p.tar.mkv')).toBe('Film.Name.1080p.tar');
   });
 
+  it('extracts the filename from a media-source URL and ignores its stream fragment', () => {
+    expect(fileStem(
+      'http://10.0.0.1/download/token/Show.S05E01.2160p.mkv#tgstream/channel/41533-41534',
+    )).toBe('Show.S05E01.2160p');
+  });
+
   it('classifies an exact TMDB match as present', () => {
     expect(resolveEmbyPresence([item()], { mode: 'tmdb' })).toEqual({
       state: 'present',
@@ -145,6 +151,18 @@ describe('Emby presence resolver', () => {
       'Show.S01E01.2160p',
       'Show.S01E01.1080p',
     ]);
+  });
+
+  it('deduplicates strm paths and media-source URLs for the same episode version', () => {
+    const episode = {
+      ...item({ path: 'D:\\Series\\Show.S05E01.2160p.strm' }),
+      indexNumber: 1,
+      mediaSources: [{
+        path: 'http://10.0.0.1/download/token/Show.S05E01.2160p.mkv#tgstream/channel/41533',
+      }],
+    } as EmbyItem;
+
+    expect(episodeOneFilenames([episode])).toEqual(['Show.S05E01.2160p']);
   });
 
   it('does not substitute another episode when episode one is absent', () => {
