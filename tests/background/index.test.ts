@@ -95,6 +95,46 @@ describe('background Quick Workflow log actions', () => {
       workflowName: 'Film', fileName: expect.stringMatching(/^\d{4}-\d{2}-\d{2}_.*_Film\.json$/),
     });
   });
+
+  it('loads episode one for a selected Emby season', async () => {
+    vi.mocked(fetch).mockImplementation(async (request) => {
+      const url = request instanceof Request ? request.url : request.toString();
+      if (url === 'chrome-extension://jspider/config.local.json') {
+        return json({ embyBaseUrl: 'https://emby.example', embyToken: 'emby-token' });
+      }
+      if (url.includes('/emby/Shows/series-1/Episodes')) {
+        return json({
+          Items: [{
+            Id: 'episode-1', Name: 'Episode 1', Type: 'Episode', IndexNumber: 1,
+            Path: '/series/Show/Season 02/Show.S02E01.1080p.mkv',
+          }],
+          TotalRecordCount: 1,
+        });
+      }
+      return json({}, 404);
+    });
+
+    await expect(send('emby.season', { seriesId: 'series-1', seasonId: 'season-2' }))
+      .resolves.toEqual({
+        ok: true,
+        data: { seasonId: 'season-2', files: ['Show.S02E01.1080p'] },
+      });
+  });
+
+  it('rejects empty Emby season identifiers', async () => {
+    vi.mocked(fetch).mockImplementation(async (request) => {
+      const url = request instanceof Request ? request.url : request.toString();
+      return url === 'chrome-extension://jspider/config.local.json'
+        ? json({ embyBaseUrl: 'https://emby.example', embyToken: 'emby-token' })
+        : json({}, 404);
+    });
+
+    await expect(send('emby.season', { seriesId: '', seasonId: 'season-2' }))
+      .resolves.toMatchObject({
+        ok: false,
+        error: { message: 'Identificatore Emby non valido.' },
+      });
+  });
 });
 
 function configureSuccessfulTaskFlow(): void {

@@ -77,7 +77,9 @@ exclusive creation modes:
 
 The Emby panel in phase 1 is read-only and informational. A red indicator means
 matching files are present; green means absent; ambiguous or unreachable states
-remain distinct and never affect workflow creation.
+remain distinct and never affect workflow creation. For TV series, compact
+wrapping season buttons open on the latest normal season and show the available
+episode-1 filenames for the selected season.
 
 ## License
 

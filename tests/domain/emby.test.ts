@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  episodeOneFilenames,
   fileStem,
+  matchingEmbyItems,
   resolveEmbyPresence,
+  selectDefaultEmbySeason,
   type EmbyItem,
+  type EmbySeasonSummary,
 } from '../../src/domain/emby';
 
 const item = (overrides: Partial<EmbyItem> = {}): EmbyItem => ({
@@ -80,5 +84,74 @@ describe('Emby presence resolver', () => {
       state: 'ambiguous',
       files: ['Colony.2026.2160p.REMUX', 'Colony.2026.1080p'],
     });
+  });
+
+  it('exposes the same exact title/year matches used by the resolver', () => {
+    const exact = item();
+    expect(matchingEmbyItems([
+      item({ id: 'wrong-title', name: 'Another film' }),
+      item({ id: 'wrong-year', productionYear: 2025 }),
+      exact,
+    ], { mode: 'title', title: 'Colony', year: 2026 })).toEqual([exact]);
+  });
+
+  it('selects the highest normal season instead of specials', () => {
+    const seasons: EmbySeasonSummary[] = [
+      { id: 'specials', number: 0, name: 'Specials' },
+      { id: 'season-2', number: 2, name: 'Season 2' },
+      { id: 'season-11', number: 11, name: 'Season 11' },
+    ];
+
+    expect(selectDefaultEmbySeason(seasons)).toEqual(seasons[2]);
+  });
+
+  it('selects specials only when no normal season exists', () => {
+    const specials: EmbySeasonSummary = { id: 'specials', number: 0, name: 'Specials' };
+    expect(selectDefaultEmbySeason([specials])).toEqual(specials);
+    expect(selectDefaultEmbySeason([])).toBeNull();
+  });
+
+  it('returns each distinct episode-one filename and ignores other episodes', () => {
+    const episodeOne = {
+      ...item({ path: 'D:\\Series\\Season 01\\Show.S01E01.2160p.mkv' }),
+      indexNumber: 1,
+      mediaSources: [
+        { path: 'D:\\Series\\Season 01\\Show.S01E01.2160p.mkv' },
+        { path: 'D:\\Series\\Season 01\\Show.S01E01.1080p.mkv' },
+      ],
+    } as EmbyItem;
+    const episodeTwo = {
+      ...item({ path: 'D:\\Series\\Season 01\\Show.S01E02.2160p.mkv' }),
+      indexNumber: 2,
+    } as EmbyItem;
+
+    expect(episodeOneFilenames([episodeTwo, episodeOne])).toEqual([
+      'Show.S01E01.2160p',
+      'Show.S01E01.1080p',
+    ]);
+  });
+
+  it('uses FileName only as fallback when real episode paths are available', () => {
+    const episode = {
+      ...item({
+        path: 'D:\\Series\\Season 01\\Show.S01E01.2160p.mkv',
+        fileName: '23451',
+      }),
+      indexNumber: 1,
+      mediaSources: [{ path: 'D:\\Series\\Season 01\\Show.S01E01.1080p.mkv' }],
+    } as EmbyItem;
+
+    expect(episodeOneFilenames([episode])).toEqual([
+      'Show.S01E01.2160p',
+      'Show.S01E01.1080p',
+    ]);
+  });
+
+  it('does not substitute another episode when episode one is absent', () => {
+    const episodeTwo = {
+      ...item({ path: 'D:\\Series\\Season 01\\Show.S01E02.1080p.mkv' }),
+      indexNumber: 2,
+    } as EmbyItem;
+    expect(episodeOneFilenames([episodeTwo])).toEqual([]);
   });
 });

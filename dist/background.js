@@ -618,11 +618,11 @@ function normalizedTitle(value) {
 function filenames(items) {
   const names = /* @__PURE__ */ new Set();
   for (const item2 of items) {
-    const paths = [
+    const physicalPaths = [
       item2.path,
-      item2.fileName ?? "",
       ...item2.mediaSources.map((source) => source.path)
     ];
+    const paths = physicalPaths.some((path) => path.trim()) ? physicalPaths : [item2.fileName ?? ""];
     for (const path of paths) {
       const name = fileStem(path);
       if (name) names.add(name);
@@ -630,15 +630,24 @@ function filenames(items) {
   }
   return [...names];
 }
-function resolveEmbyPresence(items, input) {
-  if (input.mode === "tmdb") {
-    return items.length ? { state: "present", files: filenames(items) } : { state: "absent", files: [] };
-  }
+function selectDefaultEmbySeason(seasons) {
+  const normal = seasons.filter((season) => season.number > 0);
+  const candidates = normal.length ? normal : seasons;
+  return candidates.reduce((latest, season) => latest === null || season.number > latest.number ? season : latest, null);
+}
+function episodeOneFilenames(items) {
+  return filenames(items.filter((item2) => item2.indexNumber === 1));
+}
+function matchingEmbyItems(items, input) {
+  if (input.mode === "tmdb") return [...items];
   const expectedTitle = normalizedTitle(input.title);
-  const exact = items.filter((item2) => normalizedTitle(item2.name) === expectedTitle && (input.year === void 0 || item2.productionYear === input.year));
+  return items.filter((item2) => normalizedTitle(item2.name) === expectedTitle && (input.year === void 0 || item2.productionYear === input.year));
+}
+function resolveEmbyPresence(items, input) {
+  const exact = matchingEmbyItems(items, input);
   if (exact.length === 0) return { state: "absent", files: [] };
   return {
-    state: exact.length === 1 ? "present" : "ambiguous",
+    state: input.mode === "tmdb" || exact.length === 1 ? "present" : "ambiguous",
     files: filenames(exact)
   };
 }
@@ -660,6 +669,7 @@ function item(value) {
     id: typeof value.Id === "string" ? value.Id : "",
     name: typeof value.Name === "string" ? value.Name : "",
     type: typeof value.Type === "string" ? value.Type : "",
+    indexNumber: typeof value.IndexNumber === "number" ? value.IndexNumber : null,
     productionYear: typeof value.ProductionYear === "number" ? value.ProductionYear : null,
     path: typeof value.Path === "string" ? value.Path : "",
     ...typeof value.FileName === "string" ? { fileName: value.FileName } : {},
@@ -669,6 +679,13 @@ function item(value) {
 }
 function endpoint(baseUrl) {
   return new URL(`${baseUrl}${/\/emby$/i.test(new URL(baseUrl).pathname) ? "" : "/emby"}/Items`);
+}
+function tvEndpoint(baseUrl, seriesId, resource) {
+  const root = `${baseUrl}${/\/emby$/i.test(new URL(baseUrl).pathname) ? "" : "/emby"}`;
+  return new URL(`${root}/Shows/${encodeURIComponent(seriesId)}/${resource}`);
+}
+function resolutionInput(input) {
+  return input.mode === "tmdb" ? { mode: "tmdb" } : { mode: "title", title: input.title, ...input.year === void 0 ? {} : { year: input.year } };
 }
 var EmbyClient = class {
   constructor(baseUrl, token, fetcher = (request2) => fetch(request2), timeoutMs = 1e4) {
@@ -682,17 +699,7 @@ var EmbyClient = class {
   fetcher;
   timeoutMs;
   baseUrl;
-  async lookup(input) {
-    const url = endpoint(this.baseUrl);
-    url.searchParams.set("Recursive", "true");
-    url.searchParams.set("IncludeItemTypes", input.mediaKind === "movie" ? "Movie" : "Series");
-    url.searchParams.set("Fields", "ProviderIds,Path");
-    if (input.mode === "tmdb") {
-      url.searchParams.set("AnyProviderIdEquals", `tmdb.${input.tmdbId}`);
-    } else {
-      url.searchParams.set("SearchTerm", input.title);
-      if (input.year !== void 0) url.searchParams.set("Years", String(input.year));
-    }
+  async getItems(url) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     let response;
@@ -725,11 +732,57 @@ var EmbyClient = class {
     }
     const items = value.Items.map(item).filter((entry) => entry !== null);
     if (items.length !== value.Items.length) throw new Error("Risposta Emby non valida.");
-    return resolveEmbyPresence(items, input.mode === "tmdb" ? { mode: "tmdb" } : {
-      mode: "title",
-      title: input.title,
-      ...input.year === void 0 ? {} : { year: input.year }
-    });
+    return items;
+  }
+  async lookup(input) {
+    const url = endpoint(this.baseUrl);
+    url.searchParams.set("Recursive", "true");
+    url.searchParams.set("IncludeItemTypes", input.mediaKind === "movie" ? "Movie" : "Series");
+    url.searchParams.set("Fields", "ProviderIds,Path");
+    if (input.mode === "tmdb") {
+      url.searchParams.set("AnyProviderIdEquals", `tmdb.${input.tmdbId}`);
+    } else {
+      url.searchParams.set("SearchTerm", input.title);
+      if (input.year !== void 0) url.searchParams.set("Years", String(input.year));
+    }
+    const items = await this.getItems(url);
+    const matchInput = resolutionInput(input);
+    const result = resolveEmbyPresence(items, matchInput);
+    if (input.mediaKind !== "tv" || result.state !== "present") return result;
+    const matchingSeries = matchingEmbyItems(items, matchInput);
+    if (matchingSeries.length > 1) return { ...result, state: "ambiguous" };
+    const series = matchingSeries[0];
+    if (!series?.id) throw new Error("Risposta Emby non valida.");
+    const seasonItems = await this.getItems(tvEndpoint(this.baseUrl, series.id, "Seasons"));
+    const seasons = seasonItems.map((season) => season.id && typeof season.indexNumber === "number" ? { id: season.id, number: season.indexNumber, name: season.name } : null);
+    if (seasons.some((season) => season === null)) throw new Error("Risposta Emby non valida.");
+    const sortedSeasons = seasons.sort((left, right) => left.number - right.number);
+    const selected = selectDefaultEmbySeason(sortedSeasons);
+    const selectedFiles = selected ? (await this.lookupSeasonEpisodeOne(series.id, selected.id)).files : [];
+    return {
+      state: "present",
+      files: selectedFiles,
+      series: {
+        seriesId: series.id,
+        seasons: sortedSeasons,
+        selectedSeasonId: selected?.id ?? null
+      }
+    };
+  }
+  async lookupSeasonEpisodeOne(seriesId, seasonId) {
+    if (!seriesId.trim() || !seasonId.trim()) throw new Error("Identificatore Emby non valido.");
+    const url = tvEndpoint(this.baseUrl, seriesId, "Episodes");
+    url.searchParams.set("SeasonId", seasonId);
+    url.searchParams.set("Fields", "Path,FileName,MediaSources");
+    const episodes = await this.getItems(url);
+    if (episodes.some((episode) => !episode.id || episode.type !== "Episode" || typeof episode.indexNumber !== "number")) {
+      throw new Error("Risposta Emby non valida.");
+    }
+    const files = episodeOneFilenames(episodes);
+    if (episodes.some((episode) => episode.indexNumber === 1) && files.length === 0) {
+      throw new Error("Risposta Emby non valida.");
+    }
+    return { seasonId, files };
   }
 };
 
@@ -1155,6 +1208,14 @@ async function handle(message, sender) {
     const emby = await loadEmbySettings();
     if (!emby.baseUrl || !emby.token) throw new Error("Emby non configurato in config.local.json.");
     return new EmbyClient(emby.baseUrl, emby.token).lookup(message.input);
+  }
+  if (message.action === "emby.season") {
+    const seriesId = typeof message.seriesId === "string" ? message.seriesId.trim() : "";
+    const seasonId = typeof message.seasonId === "string" ? message.seasonId.trim() : "";
+    if (!seriesId || !seasonId) throw new Error("Identificatore Emby non valido.");
+    const emby = await loadEmbySettings();
+    if (!emby.baseUrl || !emby.token) throw new Error("Emby non configurato in config.local.json.");
+    return new EmbyClient(emby.baseUrl, emby.token).lookupSeasonEpisodeOne(seriesId, seasonId);
   }
   if (message.action === "taskflow.quickWorkflow") {
     let logRunId = null;

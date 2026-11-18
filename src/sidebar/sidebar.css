@@ -68,6 +68,9 @@ button.quiet { background: transparent; color: var(--muted); font-size: 12px; pa
 .poster { width: 96px; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; }
 .emby-status { position: relative; min-height: 62px; margin-top: 10px; padding: 11px 88px 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: #0e1922; color: var(--muted); font-size: 12px; }
 .emby-heading { display: block; margin-bottom: 4px; color: var(--text); font-size: 12px; }
+.emby-season-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 9px; }
+.emby-season-button { min-width: 38px; min-height: 27px; padding: 4px 7px; border-color: var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; line-height: 1; }
+.emby-season-button[aria-pressed="true"] { border-color: var(--accent); background: #16302b; color: #c9f7e9; }
 .emby-file-list { display: grid; gap: 3px; }
 .emby-file-row { display: grid; grid-template-columns: 10px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 19px; }
 .emby-file-name { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }

@@ -91,6 +91,15 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
     if (!emby.baseUrl || !emby.token) throw new Error('Emby non configurato in config.local.json.');
     return new EmbyClient(emby.baseUrl, emby.token).lookup(message.input as EmbyLookupInput);
   }
+  if (message.action === 'emby.season') {
+    const seriesId = typeof message.seriesId === 'string' ? message.seriesId.trim() : '';
+    const seasonId = typeof message.seasonId === 'string' ? message.seasonId.trim() : '';
+    if (!seriesId || !seasonId) throw new Error('Identificatore Emby non valido.');
+    const emby = await loadEmbySettings();
+    if (!emby.baseUrl || !emby.token) throw new Error('Emby non configurato in config.local.json.');
+    return new EmbyClient(emby.baseUrl, emby.token)
+      .lookupSeasonEpisodeOne(seriesId, seasonId);
+  }
   if (message.action === 'taskflow.quickWorkflow') {
     let logRunId: string | null = null;
     const workflowName = message.workflow !== null && typeof message.workflow === 'object'

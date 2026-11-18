@@ -98,6 +98,13 @@ The Emby panel is informational and never blocks or changes a workflow:
 - **In attesa/Verifica**: validation has not happened yet or the lookup is in
   progress.
 
+For a TV series, the panel lists every available season as compact wrapping
+buttons (`S01`, `S02`, ...). The latest normal season is selected automatically;
+`S00` is used only when no normal season exists. The selected season shows every
+distinct filename for episode 1, without directory or final extension. Click a
+different season to load its episode 1. A season without episode 1 says so
+explicitly and JSpider never substitutes another episode.
+
 An error is never converted into “Assente”. The first check may trigger a
 browser permission request for the configured Emby HTTPS origin.
 

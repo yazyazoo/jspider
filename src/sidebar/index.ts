@@ -45,7 +45,7 @@ import { formatTechnicalSummary } from './technical-summary';
 import { initializeFullWebUiToggle, type FullWebUiRuntime } from './full-webui';
 import { resolvePresetCleanup, type CleanupPreset } from './preset-cleanup';
 import type { EmbyLookupInput, EmbyPresenceResult } from '../domain/emby';
-import { renderEmbyStatus } from './emby-status';
+import { EmbyPanelController, type EmbySeasonFilesResult } from './emby-status';
 import type { MediaRatings } from '../domain/media-ratings';
 import {
   copyText,
@@ -74,7 +74,11 @@ let manualPassword: string | null = null;
 const tmdbResultGate = new LatestResultGate();
 const embyResultGate = new LatestResultGate();
 const ratingsResultGate = new LatestResultGate();
-renderEmbyStatus(element('emby-status'), { state: 'idle' });
+const embyPanel = new EmbyPanelController(
+  element('emby-status'),
+  (seriesId, seasonId) => background<EmbySeasonFilesResult>('emby.season', { seriesId, seasonId }),
+);
+embyPanel.setStatus({ state: 'idle' });
 initializeTooltips(document);
 initializeDismissiblePopover(
   element<HTMLButtonElement>('settings-button'),
@@ -280,12 +284,12 @@ async function enrichCandidateRatings(current: readonly TmdbCandidate[]): Promis
 async function checkEmby(input: EmbyLookupInput): Promise<void> {
   embyResultGate.invalidate();
   if (!settings?.embyConfigured || !settings.embyBaseUrl) {
-    renderEmbyStatus(element('emby-status'), {
+    embyPanel.setStatus({
       state: 'unavailable', message: 'Emby non configurato in config.local.json.',
     });
     return;
   }
-  renderEmbyStatus(element('emby-status'), { state: 'checking' });
+  embyPanel.setStatus({ state: 'checking' });
   try {
     const result = await embyResultGate.run(async () => {
       const url = new URL(settings!.embyBaseUrl);
@@ -294,9 +298,9 @@ async function checkEmby(input: EmbyLookupInput): Promise<void> {
       if (!await permission) throw new Error('Permesso di collegamento a Emby non concesso.');
       return background<EmbyPresenceResult>('emby.check', { input });
     });
-    if (result) renderEmbyStatus(element('emby-status'), result);
+    if (result) embyPanel.setStatus(result);
   } catch (reason) {
-    renderEmbyStatus(element('emby-status'), {
+    embyPanel.setStatus({
       state: 'unavailable',
       message: reason instanceof Error ? reason.message : 'Controllo Emby non riuscito.',
     });
@@ -328,7 +332,7 @@ function clearTmdbSelection(): void {
     results: element('results'),
     validation: element('validation-state'),
   });
-  renderEmbyStatus(element('emby-status'), { state: 'idle' });
+  embyPanel.setStatus({ state: 'idle' });
   renderCreateState();
 }
 

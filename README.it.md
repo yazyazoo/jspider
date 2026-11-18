@@ -79,6 +79,9 @@ versioni fra due modalità di creazione esclusive:
 Il pannello Emby nella fase 1 è informativo e in sola lettura. L’indicatore
 rosso segnala file presenti, il verde indica contenuto assente; stati ambigui o
 non verificabili restano distinti e non influenzano la creazione del workflow.
+Per le serie TV, pulsanti compatti delle stagioni disposti a capo aprono
+automaticamente l’ultima stagione normale e mostrano i nomi file dell’episodio 1
+della stagione selezionata.
 
 ## Licenza
 

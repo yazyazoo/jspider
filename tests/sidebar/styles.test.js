@@ -9,6 +9,11 @@ describe('responsive sidebar layout', () => {
     expect(css).toMatch(/\.emby-file-list\s*\{[^}]*display:\s*grid/s);
   });
 
+  it('wraps compact Emby season buttons without horizontal scrolling', () => {
+    expect(css).toMatch(/\.emby-season-list\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/s);
+    expect(css).not.toMatch(/\.emby-season-list\s*\{[^}]*overflow-x:\s*(?:auto|scroll)/s);
+  });
+
   it('moves the right header group to its own right-aligned row at narrow widths', () => {
     const narrow = css.match(/@media \(max-width: 620px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(narrow).toContain('header { flex-wrap: wrap; }');

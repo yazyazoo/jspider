@@ -99,6 +99,14 @@ Il pannello Emby è informativo e non blocca né modifica il workflow:
 - **In attesa/Verifica**: il titolo non è ancora validato oppure il controllo è
   in corso.
 
+Per una serie TV, il pannello elenca tutte le stagioni disponibili come pulsanti
+compatti disposti a capo (`S01`, `S02`, ...). L’ultima stagione normale viene
+selezionata automaticamente; `S00` viene usata solo se non esistono stagioni
+normali. Per la stagione selezionata vengono mostrati tutti i nomi file distinti
+dell’episodio 1, senza directory ed estensione finale. Fai clic su un’altra
+stagione per caricarne l’episodio 1. Se E01 non esiste, JSpider lo indica
+esplicitamente e non lo sostituisce con un altro episodio.
+
 Un errore non viene mai trasformato in “Assente”. Il primo controllo può far
 comparire la richiesta di permesso del browser per il dominio HTTPS Emby.
 

@@ -44,6 +44,11 @@ token Bearer amministrativo della WebUI. TMDB accetta un token di lettura o una
 chiave v3. Emby invia il token solamente come `X-Emby-Token` ed esegue richieste
 GET. MDBList viene interrogato per ID TMDB e tipo di contenuto; dati mancanti o
 ricerche fallite vengono omessi.
+Per una serie TV riconosciuta esattamente, il client Emby recupera il catalogo
+delle stagioni, carica l’episodio 1 dell’ultima stagione normale ed espone alla
+sidebar ricerche lazy in sola lettura per le altre stagioni. La sidebar conserva
+in memoria solo le stagioni aperte per il titolo validato e ignora risposte
+asincrone obsolete.
 
 `src/domain/` contiene validazione pura, proposta delle versioni, analisi
 ordinata delle submission, costruzione dei payload workflow e risoluzione della

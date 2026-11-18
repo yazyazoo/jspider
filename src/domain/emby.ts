@@ -8,11 +8,24 @@ export interface EmbyItem {
   id: string;
   name: string;
   type: string;
+  indexNumber?: number | null;
   productionYear: number | null;
   path: string;
   fileName?: string;
   providerIds: Record<string, string>;
   mediaSources: EmbyMediaSource[];
+}
+
+export interface EmbySeasonSummary {
+  id: string;
+  number: number;
+  name: string;
+}
+
+export interface EmbySeriesDetails {
+  seriesId: string;
+  seasons: EmbySeasonSummary[];
+  selectedSeasonId: string | null;
 }
 
 export type EmbyLookupInput =
@@ -26,6 +39,7 @@ export type EmbyResolutionInput =
 export interface EmbyPresenceResult {
   state: 'present' | 'absent' | 'ambiguous';
   files: string[];
+  series?: EmbySeriesDetails;
 }
 
 export function fileStem(path: string): string {
@@ -45,11 +59,13 @@ function normalizedTitle(value: string): string {
 function filenames(items: readonly EmbyItem[]): string[] {
   const names = new Set<string>();
   for (const item of items) {
-    const paths = [
+    const physicalPaths = [
       item.path,
-      item.fileName ?? '',
       ...item.mediaSources.map((source) => source.path),
     ];
+    const paths = physicalPaths.some((path) => path.trim())
+      ? physicalPaths
+      : [item.fileName ?? ''];
     for (const path of paths) {
       const name = fileStem(path);
       if (name) names.add(name);
@@ -58,22 +74,37 @@ function filenames(items: readonly EmbyItem[]): string[] {
   return [...names];
 }
 
+export function selectDefaultEmbySeason(
+  seasons: readonly EmbySeasonSummary[],
+): EmbySeasonSummary | null {
+  const normal = seasons.filter((season) => season.number > 0);
+  const candidates = normal.length ? normal : seasons;
+  return candidates.reduce<EmbySeasonSummary | null>((latest, season) =>
+    latest === null || season.number > latest.number ? season : latest, null);
+}
+
+export function episodeOneFilenames(items: readonly EmbyItem[]): string[] {
+  return filenames(items.filter((item) => item.indexNumber === 1));
+}
+
+export function matchingEmbyItems(
+  items: readonly EmbyItem[],
+  input: EmbyResolutionInput,
+): EmbyItem[] {
+  if (input.mode === 'tmdb') return [...items];
+  const expectedTitle = normalizedTitle(input.title);
+  return items.filter((item) => normalizedTitle(item.name) === expectedTitle
+    && (input.year === undefined || item.productionYear === input.year));
+}
+
 export function resolveEmbyPresence(
   items: readonly EmbyItem[],
   input: EmbyResolutionInput,
 ): EmbyPresenceResult {
-  if (input.mode === 'tmdb') {
-    return items.length
-      ? { state: 'present', files: filenames(items) }
-      : { state: 'absent', files: [] };
-  }
-
-  const expectedTitle = normalizedTitle(input.title);
-  const exact = items.filter((item) => normalizedTitle(item.name) === expectedTitle
-    && (input.year === undefined || item.productionYear === input.year));
+  const exact = matchingEmbyItems(items, input);
   if (exact.length === 0) return { state: 'absent', files: [] };
   return {
-    state: exact.length === 1 ? 'present' : 'ambiguous',
+    state: input.mode === 'tmdb' || exact.length === 1 ? 'present' : 'ambiguous',
     files: filenames(exact),
   };
 }

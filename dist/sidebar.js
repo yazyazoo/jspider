@@ -740,7 +740,7 @@ function led(document2, state) {
   node.setAttribute("aria-hidden", "true");
   return node;
 }
-function renderEmbyStatus(container, status2) {
+function renderEmbyStatus(container, status2, options = {}) {
   const document2 = container.ownerDocument;
   container.replaceChildren();
   container.className = `emby-status ${status2.state}`;
@@ -748,11 +748,38 @@ function renderEmbyStatus(container, status2) {
   heading.className = "emby-heading";
   heading.textContent = "Libreria Emby";
   container.append(heading);
+  if (status2.state === "present" && status2.series) {
+    const seasons = document2.createElement("div");
+    seasons.className = "emby-season-list";
+    seasons.setAttribute("aria-label", "Stagioni presenti in Emby");
+    for (const season of status2.series.seasons) {
+      const button = document2.createElement("button");
+      button.type = "button";
+      button.className = "emby-season-button";
+      button.textContent = `S${String(season.number).padStart(2, "0")}`;
+      button.title = season.name;
+      button.setAttribute("aria-pressed", String(season.id === status2.series.selectedSeasonId));
+      button.disabled = options.loadingSeasonId === season.id;
+      button.addEventListener("click", () => options.onSeasonSelect?.(season.id));
+      seasons.append(button);
+    }
+    container.append(seasons);
+  }
   const list = document2.createElement("div");
   list.className = "emby-file-list";
   container.append(list);
   if (status2.state === "present" || status2.state === "ambiguous") {
-    const files = status2.files.length ? status2.files : ["Nome file non disponibile"];
+    const selectedSeries = status2.state === "present" ? status2.series : void 0;
+    const selectedSeasonId = selectedSeries?.selectedSeasonId ?? null;
+    const loading = selectedSeasonId !== null && options.loadingSeasonId === selectedSeasonId;
+    const message = selectedSeries && status2.files.length === 0 ? options.seasonError ?? (loading ? "Caricamento episodio 1\u2026" : "Episodio 1 non presente.") : null;
+    const files = status2.files.length ? status2.files : message ? [] : ["Nome file non disponibile"];
+    if (message) {
+      const row = document2.createElement("div");
+      row.className = "emby-file-row";
+      row.append(led(document2, options.seasonError ? "unavailable" : loading ? "checking" : "absent"), message);
+      list.append(row);
+    }
     for (const file of files) {
       const row = document2.createElement("div");
       row.className = "emby-file-row";
@@ -784,6 +811,62 @@ function renderEmbyStatus(container, status2) {
   }[status2.state];
   container.append(label);
 }
+var EmbyPanelController = class {
+  constructor(container, loadSeason) {
+    this.container = container;
+    this.loadSeason = loadSeason;
+  }
+  container;
+  loadSeason;
+  status = { state: "idle" };
+  cache = /* @__PURE__ */ new Map();
+  revision = 0;
+  setStatus(status2) {
+    this.revision += 1;
+    this.cache.clear();
+    this.status = status2;
+    if (status2.state === "present" && status2.series?.selectedSeasonId) {
+      this.cache.set(status2.series.selectedSeasonId, [...status2.files]);
+    }
+    this.render();
+  }
+  async selectSeason(seasonId) {
+    const current = this.status;
+    if (current.state !== "present" || !current.series || !current.series.seasons.some((season) => season.id === seasonId)) return;
+    const revision = ++this.revision;
+    const cached = this.cache.get(seasonId);
+    this.status = {
+      ...current,
+      files: cached ? [...cached] : [],
+      series: { ...current.series, selectedSeasonId: seasonId }
+    };
+    if (cached) {
+      this.render();
+      return;
+    }
+    this.render({ loadingSeasonId: seasonId });
+    try {
+      const result = await this.loadSeason(current.series.seriesId, seasonId);
+      if (revision !== this.revision || result.seasonId !== seasonId) return;
+      this.cache.set(seasonId, [...result.files]);
+      this.status = { ...this.status, files: [...result.files] };
+      this.render();
+    } catch (reason) {
+      if (revision !== this.revision) return;
+      this.render({
+        seasonError: reason instanceof Error ? reason.message : "Controllo stagione Emby non riuscito."
+      });
+    }
+  }
+  render(options = {}) {
+    renderEmbyStatus(this.container, this.status, {
+      ...options,
+      onSeasonSelect: (seasonId) => {
+        void this.selectSeason(seasonId);
+      }
+    });
+  }
+};
 
 // src/sidebar/quick-workflow-log.ts
 var phaseLabel = { submission: "Submission", create: "Create", start: "Start" };
@@ -911,7 +994,11 @@ var manualPassword = null;
 var tmdbResultGate = new LatestResultGate();
 var embyResultGate = new LatestResultGate();
 var ratingsResultGate = new LatestResultGate();
-renderEmbyStatus(element("emby-status"), { state: "idle" });
+var embyPanel = new EmbyPanelController(
+  element("emby-status"),
+  (seriesId, seasonId) => background("emby.season", { seriesId, seasonId })
+);
+embyPanel.setStatus({ state: "idle" });
 initializeTooltips(document);
 initializeDismissiblePopover(
   element("settings-button"),
@@ -1112,13 +1199,13 @@ async function enrichCandidateRatings(current) {
 async function checkEmby(input2) {
   embyResultGate.invalidate();
   if (!settings?.embyConfigured || !settings.embyBaseUrl) {
-    renderEmbyStatus(element("emby-status"), {
+    embyPanel.setStatus({
       state: "unavailable",
       message: "Emby non configurato in config.local.json."
     });
     return;
   }
-  renderEmbyStatus(element("emby-status"), { state: "checking" });
+  embyPanel.setStatus({ state: "checking" });
   try {
     const result = await embyResultGate.run(async () => {
       const url = new URL(settings.embyBaseUrl);
@@ -1127,9 +1214,9 @@ async function checkEmby(input2) {
       if (!await permission) throw new Error("Permesso di collegamento a Emby non concesso.");
       return background("emby.check", { input: input2 });
     });
-    if (result) renderEmbyStatus(element("emby-status"), result);
+    if (result) embyPanel.setStatus(result);
   } catch (reason) {
-    renderEmbyStatus(element("emby-status"), {
+    embyPanel.setStatus({
       state: "unavailable",
       message: reason instanceof Error ? reason.message : "Controllo Emby non riuscito."
     });
@@ -1155,7 +1242,7 @@ function clearTmdbSelection() {
     results: element("results"),
     validation: element("validation-state")
   });
-  renderEmbyStatus(element("emby-status"), { state: "idle" });
+  embyPanel.setStatus({ state: "idle" });
   renderCreateState();
 }
 function renderCatalog() {

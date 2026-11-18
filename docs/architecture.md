@@ -43,6 +43,10 @@ MDBList ratings and awards asynchronously without blocking validation.
 administrative Bearer token as its WebUI. TMDB supports a read token or v3 key.
 Emby sends its token only as `X-Emby-Token` and performs GET requests. MDBList
 is queried by TMDB ID and media kind; missing or failed enrichment is omitted.
+For an exact TV-series match, the Emby client retrieves the season catalog,
+loads episode 1 for the latest normal season, and exposes lazy read-only season
+lookups to the sidebar. The sidebar caches only seasons opened for the current
+validated title and rejects stale asynchronous results.
 
 `src/domain/` contains pure validation, release recommendation, ordered
 submission analysis, workflow payload construction, and Emby presence
