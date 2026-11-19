@@ -94,9 +94,22 @@ function recommendVersions(variants, profile = "4k1080", limitMbps = 0) {
   const unlimited = limitMbps === null || String(limitMbps).trim() === "" || Number(limitMbps) === 0;
   const tier = (variant) => priority[variant.technical.category];
   const videoRate = (variant) => variant.technical.videoBitrate ?? (variant.technical.videoBytes !== null && variant.technical.duration !== null ? variant.technical.videoBytes * 8 / variant.technical.duration : 0);
+  const codecFamily = (codec) => {
+    if (/^(?:HEVC|H\.?265)$/i.test(codec.trim())) return "hevc";
+    if (/^(?:AVC|H\.?264)$/i.test(codec.trim())) return "avc";
+    return "other";
+  };
+  const equivalentVideoRate = (variant) => videoRate(variant) * (codecFamily(variant.technical.codec) === "hevc" ? 2 : 1);
   const totalRate = (variant) => variant.technical.overallBitrate ?? (variant.technical.totalBytes !== null && variant.technical.duration !== null ? variant.technical.totalBytes * 8 / variant.technical.duration : 0);
   const withinLimit = (variant) => unlimited || totalRate(variant) > 0 && totalRate(variant) <= Number(limitMbps) * 1e6;
   const rateText = (rate) => `${(rate / 1e6).toLocaleString("it-IT", { maximumFractionDigits: 2 })} Mb/s`;
+  const comparisonText = (variant) => {
+    const rate = videoRate(variant);
+    const family = codecFamily(variant.technical.codec);
+    if (family === "hevc") return `HEVC ${rateText(rate)} \xB7 equiv. AVC ${rateText(equivalentVideoRate(variant))}`;
+    if (family === "avc") return `AVC ${rateText(rate)}`;
+    return `${variant.technical.codec || "Codec \u2014"} ${rateText(rate)}`;
+  };
   const choose = (list, group, resolution, selected) => {
     if (!list.length) {
       if (selected) result.notes.push(`${group}: nessuna versione disponibile.`);
@@ -105,7 +118,7 @@ function recommendVersions(variants, profile = "4k1080", limitMbps = 0) {
     const eligible = list.filter(withinLimit);
     for (const variant of list) {
       if (!withinLimit(variant)) {
-        result.reasons[variant.key] = "Non proposta: bitrate totale oltre soglia o non disponibile per verificare il limite.";
+        result.reasons[variant.key] = totalRate(variant) > 0 ? "Esclusa: bitrate totale oltre il limite." : "Esclusa: bitrate totale non disponibile.";
       }
     }
     if (!eligible.length) {
@@ -114,52 +127,49 @@ function recommendVersions(variants, profile = "4k1080", limitMbps = 0) {
     }
     const highestTier = Math.max(...eligible.map(tier));
     const pool = eligible.filter((variant) => tier(variant) === highestTier);
-    const ranked = pool.slice().sort((left, right) => videoRate(right) - videoRate(left) || (right.technical.bitDepth ?? 0) - (left.technical.bitDepth ?? 0) || left.key.localeCompare(right.key));
+    const ranked = pool.slice().sort((left, right) => equivalentVideoRate(right) - equivalentVideoRate(left) || (right.technical.bitDepth ?? 0) - (left.technical.bitDepth ?? 0) || videoRate(left) - videoRate(right) || left.key.localeCompare(right.key));
     const best = ranked[0];
     if (!best) return;
     const technical = pool.map((variant) => variant.technical);
     const issues = [];
     if (technical.some((item) => !item.codec || !item.bitDepth || !item.videoBitrate || !item.duration)) {
-      issues.push("dati tecnici mancanti o insufficienti");
+      issues.push("dati incompleti");
     }
-    if (technical.some((item) => item.bitrateEstimated)) issues.push("bitrate video stimato");
-    if (highestTier === 0) issues.push("tipo di sorgente non indicato");
+    if (technical.some((item) => item.bitrateEstimated)) issues.push("bitrate stimato");
+    if (highestTier === 0) issues.push("sorgente non riconosciuta");
     const differs = (field) => new Set(
       technical.map((item) => item[field] ?? "")
     ).size > 1;
-    if (differs("codec")) issues.push("codec diversi (H.264/HEVC o altri): bitrate non equivalente e nessun rapporto fisso");
-    if (differs("bitDepth")) issues.push("profondit\xE0 in bit diverse");
-    if (differs("hdr")) issues.push("HDR/SDR diversi: verifica la compatibilit\xE0");
-    if (differs("sourceFamily") || differs("provider")) issues.push("sorgenti o provider diversi");
+    if (differs("codec") && technical.some((item) => codecFamily(item.codec) === "other")) {
+      issues.push("codec non confrontabili");
+    }
+    if (differs("bitDepth")) issues.push("bit depth diversa");
+    if (differs("hdr")) issues.push("HDR/SDR");
+    if (differs("sourceFamily") || differs("provider")) issues.push("sorgenti diverse");
     const spread = (field) => {
       const values = technical.map((item) => item[field]).filter((value) => value !== null && value > 0);
       return values.length > 1 && Math.max(...values) / Math.min(...values) > 1.02;
     };
-    if (spread("duration")) issues.push("durate diverse: verifica il montaggio");
-    if (spread("width") || spread("height") || spread("fps")) issues.push("dimensioni o frequenze video diverse");
-    const tied = ranked.length > 1 && videoRate(ranked[0]) === videoRate(ranked[1]);
-    if (tied) issues.push("bitrate equivalenti: profondit\xE0 in bit e ordine stabile risolvono la parit\xE0");
+    if (spread("duration")) issues.push("durata diversa");
+    if (spread("width") || spread("height") || spread("fps")) issues.push("dimensioni/FPS diversi");
     const uncertain = issues.length > 0;
-    const categoryText = {
-      untouched: "Priorit\xE0 alla traccia untouched/REMUX",
-      source: "Priorit\xE0 alla sorgente WEB-DL",
-      encode: "Ricodifica proposta",
-      unknown: "Tipologia della sorgente non indicata"
+    const singleText = {
+      untouched: "priorit\xE0 REMUX",
+      source: "unica versione WEB-DL",
+      encode: "unica versione codificata",
+      unknown: "unica candidata"
     }[best.technical.category];
-    let reason = `${categoryText}. ${unlimited ? "Nessun limite di bitrate. " : `Entro la soglia di ${limitMbps} Mb/s totali. `}`;
-    if (videoRate(best) > 0) {
-      reason += `${pool.length > 1 ? tied ? "Bitrate video a parit\xE0: " : "Bitrate video pi\xF9 alto fra candidate di pari priorit\xE0: " : "Bitrate video: "}${rateText(videoRate(best))}. `;
-    } else reason += "Bitrate video mancante: preferenza provvisoria per profondit\xE0 in bit nota e ordine stabile. ";
-    if (pool.length === 1) reason += "Unica candidata con questa priorit\xE0. ";
-    reason += uncertain ? `Proposta indicativa, confronto incerto: ${issues.join("; ")}. Puoi cambiarla.` : "Confronto fra candidate compatibili nei dati disponibili; qualit\xE0 stimata dai metadati.";
-    result.reasons[best.key] = `${selected ? `Proposta ${group}: ` : `Candidata ${group} (fuori dal profilo): `}${reason}`;
+    const prefix = selected ? "Proposta" : `Candidata ${group}`;
+    const decision = pool.length > 1 ? videoRate(best) > 0 ? comparisonText(best) : "bitrate video non disponibile" : singleText;
+    let reason = `${prefix}: ${decision}.`;
+    if (uncertain) reason += ` Indicativa: ${issues.join(" \xB7 ")}.`;
+    result.reasons[best.key] = reason;
     for (const variant of eligible) {
       if (variant === best) continue;
-      result.reasons[variant.key] = tier(variant) < highestTier ? `Alternativa ${group}: priorit\xE0 alla sorgente/untouched proposta, entro i limiti scelti.` : `Alternativa ${group}: ${videoRate(variant) > 0 ? `bitrate video ${rateText(videoRate(variant))}` : "bitrate video non disponibile"}. ${uncertain ? "Confronto incerto; puoi selezionarla al posto della proposta." : "La proposta usa il bitrate video pi\xF9 alto, a parit\xE0 di priorit\xE0."}`;
+      result.reasons[variant.key] = tier(variant) < highestTier ? highestTier >= priority.source ? "Alternativa: priorit\xE0 inferiore alla sorgente/REMUX." : "Alternativa: priorit\xE0 inferiore." : videoRate(variant) > 0 ? `Alternativa: ${comparisonText(variant)}.` : "Alternativa: bitrate video non disponibile.";
     }
     result.comparisons.push({ resolution, key: best.key, uncertain, selected, group });
     if (selected) result.keys.push(best.key);
-    if (uncertain && selected) result.notes.push(`${group}: proposta indicativa, confronto incerto (${issues.join("; ")}).`);
   };
   const profileResolutions = profile === "4k1080" ? [2160, 1080] : [1080];
   const resolutions = [.../* @__PURE__ */ new Set([
@@ -191,6 +201,133 @@ function normalizeTaskFlowBaseUrl(value) {
   return url.origin;
 }
 
+// src/domain/media-ratings.ts
+var sourceOrder = [
+  "imdb",
+  "tomatoes",
+  "popcorn",
+  "metacritic",
+  "metacriticuser",
+  "letterboxd",
+  "trakt",
+  "rogerebert",
+  "myanimelist",
+  "justwatch"
+];
+var labels = {
+  imdb: "IMDb",
+  tomatoes: "Rotten Tomatoes critica",
+  popcorn: "Rotten Tomatoes pubblico",
+  metacritic: "Metacritic",
+  metacriticuser: "Metacritic utenti",
+  letterboxd: "Letterboxd",
+  trakt: "Trakt",
+  rogerebert: "Roger Ebert",
+  myanimelist: "MyAnimeList",
+  justwatch: "JustWatch"
+};
+function record(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function relativePath(value, prefix) {
+  if (typeof value !== "string" || !prefix.test(value) || value.includes("..") || value.includes("\\")) return null;
+  return value;
+}
+function finiteValue(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+function textValue(value) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(1)));
+}
+function ratingValue(source, value) {
+  if (source === "tomatoes" || source === "popcorn" || source === "trakt") return `${textValue(value)}%`;
+  if (source === "rogerebert") return `${textValue(value)}/4`;
+  return textValue(value);
+}
+function searchQuery(input2) {
+  return [input2.title.trim(), input2.year.trim()].filter(Boolean).join(" ");
+}
+function queryUrl(origin, pathname, key, value) {
+  const url = new URL(pathname, origin);
+  url.searchParams.set(key, value);
+  return url.toString();
+}
+function providerSearchUrl(source, input2) {
+  const query = searchQuery(input2);
+  if (source === "imdb") return queryUrl("https://www.imdb.com", "/find/", "q", query) + "&s=tt";
+  if (source === "tomatoes" || source === "popcorn") {
+    return queryUrl("https://www.rottentomatoes.com", "/search", "search", query);
+  }
+  if (source === "metacritic" || source === "metacriticuser") {
+    return `https://www.metacritic.com/search/${encodeURIComponent(query)}/`;
+  }
+  if (source === "letterboxd") return `https://letterboxd.com/search/${encodeURIComponent(query)}/`;
+  if (source === "trakt") {
+    return `https://trakt.tv/search/tmdb/${input2.tmdbId}?id_type=${input2.mediaKind === "movie" ? "movie" : "show"}`;
+  }
+  if (source === "rogerebert") return queryUrl("https://www.rogerebert.com", "/search", "query", query);
+  if (source === "myanimelist") {
+    const url = new URL("/anime.php", "https://myanimelist.net");
+    url.searchParams.set("q", query);
+    url.searchParams.set("cat", "anime");
+    return url.toString();
+  }
+  return queryUrl("https://www.justwatch.com", "/it/cerca", "q", query);
+}
+function sourceUrl(source, item, ratings, ids, mediaKind) {
+  const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
+  if (source === "imdb") return imdb ? `https://www.imdb.com/title/${imdb}/` : null;
+  if (source === "trakt") {
+    return Number.isSafeInteger(ids.trakt) && Number(ids.trakt) > 0 ? `https://trakt.tv/${mediaKind === "movie" ? "movies" : "shows"}/${String(ids.trakt)}` : null;
+  }
+  if (source === "myanimelist") {
+    return Number.isSafeInteger(ids.mal) && Number(ids.mal) > 0 ? `https://myanimelist.net/anime/${String(ids.mal)}` : null;
+  }
+  if (source === "tomatoes" || source === "popcorn") {
+    const path = relativePath(item.url, /^\/(?:m|tv)\/[A-Za-z0-9._~/-]+$/);
+    return path ? `https://www.rottentomatoes.com${path}` : null;
+  }
+  if (source === "letterboxd") {
+    const path = relativePath(item.url, /^\/film\/[A-Za-z0-9._~/-]+$/);
+    return path ? `https://letterboxd.com${path}` : null;
+  }
+  if (source === "metacritic" || source === "metacriticuser") {
+    const ownPath = relativePath(item.url, /^\/[A-Za-z0-9._~-]+$/);
+    const critic = ratings.find((rating) => rating.source === "metacritic");
+    const criticPath = relativePath(critic?.url, /^\/[A-Za-z0-9._~-]+$/);
+    const path = ownPath ?? criticPath;
+    return path ? `https://www.metacritic.com/${mediaKind === "movie" ? "movie" : "tv"}${path}/` : null;
+  }
+  if (source === "rogerebert") {
+    const slug = typeof item.url === "string" && /^[A-Za-z0-9._~-]+$/.test(item.url) ? item.url : "";
+    return slug ? `https://www.rogerebert.com/reviews/${slug}` : null;
+  }
+  return null;
+}
+function normalizeMdbListMedia(value, input2) {
+  const body = record(value) ?? {};
+  const ids = record(body.ids) ?? {};
+  const rawRatings = Array.isArray(body.ratings) ? body.ratings.map(record).filter((item) => item !== null) : [];
+  const ratings = [];
+  for (const source of sourceOrder) {
+    const item = rawRatings.find((candidate) => candidate.source === source) ?? {};
+    const valueNumber = finiteValue(item.value);
+    const url = sourceUrl(source, item, rawRatings, ids, input2.mediaKind) ?? providerSearchUrl(source, input2);
+    const votes = Number.isSafeInteger(item.votes) && Number(item.votes) >= 0 ? Number(item.votes) : null;
+    ratings.push({
+      source,
+      label: labels[source],
+      value: valueNumber === null ? null : ratingValue(source, valueNumber),
+      votes,
+      url
+    });
+  }
+  const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
+  const awardsText = typeof body.awards === "string" ? body.awards.trim() : "";
+  const awards = awardsText && awardsText !== "N/A" && imdb ? { text: awardsText, url: `https://www.imdb.com/title/${imdb}/awards/` } : null;
+  return { ratings, awards, imdbId: imdb || null };
+}
+
 // src/sidebar/state.ts
 function reconcileSelection(previous, explicitlyAdjusted2, available, recommended) {
   const availableKeys = new Set(available);
@@ -206,17 +343,56 @@ function shouldAutoSearchTmdb(configured, mediaKind) {
 }
 
 // src/sidebar/controller.ts
-async function loadCandidateEnrichments(candidates2, configured, lookup) {
+function directImdbId(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const match = url.origin === "https://www.imdb.com" ? url.pathname.match(/^\/title\/(tt\d+)\/?$/) : null;
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+async function loadCandidateEnrichments(candidates2, configured, lookup, justWatchLookup = async () => null, omdbConfigured = false, omdbAwardsLookup = async () => null) {
   const enrichments = /* @__PURE__ */ new Map();
-  if (!configured) return enrichments;
   await Promise.all(candidates2.map(async (candidate) => {
-    try {
-      enrichments.set(candidate.id, await lookup({
-        tmdbId: candidate.id,
-        mediaKind: candidate.mediaKind
-      }));
+    const input2 = {
+      tmdbId: candidate.id,
+      mediaKind: candidate.mediaKind,
+      title: candidate.title,
+      year: candidate.year
+    };
+    let enrichment = normalizeMdbListMedia({}, input2);
+    if (configured) try {
+      const loaded = await lookup(input2);
+      const fallback = enrichment;
+      const bySource = new Map(fallback.ratings.map((rating) => [rating.source, rating]));
+      for (const rating of loaded.ratings) bySource.set(rating.source, rating);
+      enrichment = {
+        ratings: fallback.ratings.map((rating) => bySource.get(rating.source) ?? rating),
+        awards: loaded.awards,
+        imdbId: loaded.imdbId
+      };
     } catch {
     }
+    const imdbId = enrichment.imdbId ?? directImdbId(candidate.imdbUrl);
+    if (imdbId !== enrichment.imdbId) enrichment = { ...enrichment, imdbId };
+    if (omdbConfigured && !enrichment.awards && imdbId) try {
+      const awards = await omdbAwardsLookup(imdbId);
+      if (awards) enrichment = { ...enrichment, awards };
+    } catch {
+    }
+    try {
+      const justWatch = await justWatchLookup({ ...input2, imdbId: enrichment.imdbId });
+      if (justWatch) {
+        enrichment = {
+          ...enrichment,
+          ratings: enrichment.ratings.map((rating) => rating.source === "justwatch" ? justWatch : rating)
+        };
+      }
+    } catch {
+    }
+    enrichments.set(candidate.id, enrichment);
   }));
   return enrichments;
 }
@@ -492,10 +668,11 @@ var ratingLogos = {
   letterboxd: "letterboxd.png",
   trakt: "trakt.png",
   rogerebert: "roger-ebert.png",
-  myanimelist: "myanimelist.png"
+  myanimelist: "myanimelist.png",
+  justwatch: "justwatch.svg"
 };
 function ratingLogo(source, value) {
-  const numericValue = Number.parseFloat(value);
+  const numericValue = value === null ? Number.NaN : Number.parseFloat(value);
   if (source === "tomatoes" && numericValue < 60) return "rotten-tomatoes-rotten.png";
   if (source === "popcorn" && numericValue < 60) return "rotten-audience-rotten.png";
   return ratingLogos[source];
@@ -517,30 +694,32 @@ function ratingLink(document2, source, logoFile, sourceLabel, value, href, title
     icon.textContent = sourceLabel;
     icon.setAttribute("aria-hidden", "true");
   }
-  const score = document2.createElement("span");
-  score.className = "rating-value";
-  score.textContent = value;
-  link.append(icon, score);
+  link.append(icon);
+  if (value) {
+    const score = document2.createElement("span");
+    score.className = "rating-value";
+    score.textContent = value;
+    link.append(score);
+  }
   return link;
 }
 function renderRatings(document2, candidate, enrichment) {
   const container = document2.createElement("div");
   container.className = "candidate-ratings";
-  if (candidate.voteAverage !== null && candidate.voteCount > 0) {
-    const value = candidate.voteAverage.toFixed(1);
-    const votes = new Intl.NumberFormat("it-IT").format(candidate.voteCount);
-    container.append(ratingLink(
-      document2,
-      "tmdb",
-      "tmdb.png",
-      "TMDB",
-      value,
-      candidate.url,
-      `TMDB: ${value} \xB7 ${votes} voti`
-    ));
-  }
+  const tmdbValue = candidate.voteAverage === null ? null : candidate.voteAverage.toFixed(1);
+  const tmdbTitle = tmdbValue === null ? "Apri su TMDB" : `TMDB: ${tmdbValue}${candidate.voteCount > 0 ? ` \xB7 ${new Intl.NumberFormat("it-IT").format(candidate.voteCount)} voti` : ""}`;
+  container.append(ratingLink(
+    document2,
+    "tmdb",
+    "tmdb.png",
+    "TMDB",
+    tmdbValue,
+    candidate.url,
+    tmdbTitle
+  ));
   for (const rating of enrichment?.ratings ?? []) {
     const votes = rating.votes === null ? "" : ` \xB7 ${new Intl.NumberFormat("it-IT").format(rating.votes)} voti`;
+    const title = rating.value === null ? `Apri ${rating.label}` : `${rating.label}: ${rating.value}${votes}`;
     container.append(ratingLink(
       document2,
       rating.source,
@@ -548,7 +727,7 @@ function renderRatings(document2, candidate, enrichment) {
       rating.label,
       rating.value,
       rating.url,
-      `${rating.label}: ${rating.value}${votes}`
+      title
     ));
   }
   if (enrichment?.awards) {
@@ -683,6 +862,14 @@ function formatTechnicalSummary(technical) {
     `File ${formatBytes(technical.totalBytes)}`,
     `Traccia video ${formatBytes(technical.videoBytes)}`
   ].filter(Boolean).join(" \xB7 ");
+}
+function renderTechnicalSummary(document2, technical) {
+  const paragraph = document2.createElement("p");
+  paragraph.className = "version-technical muted small";
+  const strong = document2.createElement("strong");
+  strong.textContent = formatTechnicalSummary(technical);
+  paragraph.append(strong);
+  return paragraph;
 }
 
 // src/sidebar/full-webui.ts
@@ -1196,9 +1383,7 @@ function renderVersions() {
     const title = document.createElement("strong");
     title.textContent = variant.packageName;
     label.append(checkbox, title);
-    const technical = document.createElement("p");
-    technical.className = "muted small";
-    technical.textContent = formatTechnicalSummary(variant.technical);
+    const technical = renderTechnicalSummary(document, variant.technical);
     const reason = document.createElement("p");
     reason.className = "version-reason small";
     reason.textContent = proposal.reasons[variant.key] ?? "Scelta manuale.";
@@ -1254,7 +1439,10 @@ async function enrichCandidateRatings(current) {
   const result = await ratingsResultGate.run(() => loadCandidateEnrichments(
     current,
     Boolean(settings?.mdblistConfigured),
-    (lookupInput) => background("mdblist.lookup", { input: lookupInput })
+    (lookupInput) => background("mdblist.lookup", { input: lookupInput }),
+    (lookupInput) => background("justwatch.lookup", { input: lookupInput }),
+    Boolean(settings?.omdbConfigured),
+    (imdbId) => background("omdb.awards", { imdbId })
   ));
   if (!result) return;
   candidateRatings = result;

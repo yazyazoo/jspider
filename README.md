@@ -3,8 +3,8 @@ English | [Italiano](README.it.md)
 # JSpider
 
 JSpider is a Chromium Manifest V3 extension that reads supported release pages,
-compares available versions, validates metadata with TMDB, shows ratings and
-awards from MDBList, reports whether a
+compares available versions, validates metadata with TMDB, shows provider links,
+MDBList ratings and awards, OMDb fallback awards, and the keyless JustWatch rating, reports whether a
 title is already present in Emby, and creates workflows through the public
 TaskFlow API.
 

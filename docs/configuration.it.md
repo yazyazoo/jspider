@@ -18,7 +18,7 @@ crea il file direttamente accanto al `manifest.json` estratto.
 | `taskflowBaseUrl` | Origine TaskFlow, senza `/api/v1` |
 | `taskflowToken` | Token Bearer amministrativo usato dalla WebUI e dal client API TaskFlow |
 | `tmdbCredential` | Token di lettura TMDB oppure API key v3 |
-| `omdbApiKey` | API key OMDb; salvata per i test ma non ancora usata da un client di rete |
+| `omdbApiKey` | API key OMDb usata esclusivamente come fallback dei premi mancanti in MDBList |
 | `mdblistApiKey` | API key MDBList usata per leggere rating e premi |
 | `embyBaseUrl` | Origine HTTPS del server Emby |
 | `embyToken` | Token API Emby inviato solamente nell’header `X-Emby-Token` |

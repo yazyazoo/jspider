@@ -27,3 +27,12 @@ export function formatTechnicalSummary(technical: TechnicalInfo): string {
     `Traccia video ${formatBytes(technical.videoBytes)}`,
   ].filter(Boolean).join(' · ');
 }
+
+export function renderTechnicalSummary(document: Document, technical: TechnicalInfo): HTMLParagraphElement {
+  const paragraph = document.createElement('p');
+  paragraph.className = 'version-technical muted small';
+  const strong = document.createElement('strong');
+  strong.textContent = formatTechnicalSummary(technical);
+  paragraph.append(strong);
+  return paragraph;
+}

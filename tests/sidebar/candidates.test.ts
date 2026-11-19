@@ -40,6 +40,7 @@ describe('candidate cards', () => {
         { source: 'popcorn', label: 'Rotten Tomatoes pubblico', value: '91%', votes: 10000, url: 'https://www.rottentomatoes.com/m/oppenheimer_2023' },
       ],
       awards: { text: 'Won 7 Oscars', url: 'https://www.imdb.com/title/tt15398776/awards/' },
+      imdbId: 'tt15398776',
     };
 
     renderCandidateCards(
@@ -67,13 +68,32 @@ describe('candidate cards', () => {
       .toBe(container.querySelector('.candidate-actions'));
   });
 
-  it('omits the whole rating row when every value is missing', () => {
+  it('keeps provider links visible and hides only their missing values', () => {
     const container = document.createElement('div');
     renderCandidateCards(container, [{ ...candidate, voteAverage: null, voteCount: 0 }], null, {
       validate() {}, fallback() {},
-    });
+    }, new Map([[42, {
+      ratings: [
+        { source: 'imdb', label: 'IMDb', value: null, votes: null, url: 'https://www.imdb.com/find/?q=A+Story+of+Derry+2026&s=tt' },
+        { source: 'justwatch', label: 'JustWatch', value: null, votes: null, url: 'https://www.justwatch.com/it/cerca?q=A+Story+of+Derry+2026' },
+      ],
+      awards: null,
+      imdbId: null,
+    }]]));
 
-    expect(container.querySelector('.candidate-ratings')).toBeNull();
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('.candidate-ratings a')];
+    expect(links.map((link) => link.title)).toEqual([
+      'Apri su TMDB',
+      'Apri IMDb',
+      'Apri JustWatch',
+    ]);
+    expect(links.map((link) => link.querySelector('.rating-value')?.textContent ?? null))
+      .toEqual([null, null, null]);
+    expect(links.map((link) => link.querySelector('img')?.getAttribute('src'))).toEqual([
+      'assets/ratings/tmdb.png',
+      'assets/ratings/imdb.png',
+      'assets/ratings/justwatch.svg',
+    ]);
   });
 
   it('uses distinct rotten source and audience logos below sixty percent', () => {
@@ -84,6 +104,7 @@ describe('candidate cards', () => {
         { source: 'popcorn', label: 'Rotten Tomatoes pubblico', value: '55%', votes: null, url: 'https://www.rottentomatoes.com/m/example' },
       ],
       awards: null,
+      imdbId: null,
     }]]));
 
     expect([...container.querySelectorAll<HTMLImageElement>('.rating-logo')].slice(-2)

@@ -66,13 +66,15 @@ viene validato senza conferma dell’operatore.
 La modifica di titolo, anno o tipo cancella la validazione e il risultato Emby
 precedenti.
 
-Se MDBList è configurato, la scheda compatta mostra i rating disponibili di
-IMDb, Rotten Tomatoes critica e pubblico, Metacritic, Trakt, Letterboxd e delle
-altre fonti come collegamenti con logo e voto. La trama è limitata a tre righe;
+La scheda compatta mostra sempre i collegamenti a TMDB, IMDb, Rotten Tomatoes
+critica e pubblico, Metacritic, Trakt, Letterboxd, JustWatch e alle altre fonti.
+Se un voto è disponibile, appare accanto al logo; altrimenti rimane il solo logo
+cliccabile. MDBList fornisce i propri rating e premi quando configurato; se i
+premi mancano, OMDb può completarli senza mai sovrascrivere MDBList. JustWatch
+viene interrogato senza chiave e in modo non bloccante. La trama è limitata a tre righe;
 **Leggi tutto** la espande e **Mostra meno** la richiude. In questo modo restano
-insieme locandina, metadati e comandi. I premi appaiono solo
-quando presenti; i valori mancanti vengono omessi e un errore MDBList non
-blocca la validazione.
+insieme locandina, metadati e comandi. I premi appaiono solo quando presenti;
+un errore MDBList, OMDb o JustWatch non blocca la validazione.
 
 ### Conferma dei metadati
 
@@ -125,6 +127,13 @@ La fase 2 determina quali versioni diventano package TaskFlow/JD.
 **Scarta sorgenti oltre · Mb/s totali** applica un limite al bitrate totale.
 Vuoto oppure `0` significa nessun limite. Le proposte usano i metadati
 disponibili e restano indicative; tutte le checkbox sono modificabili.
+
+All’interno della stessa risoluzione e priorità, JSpider confronta il bitrate
+della sola traccia video. Per stimare una qualità equivalente applica il fattore
+empirico AVC/H.264 `×1` e HEVC/H.265 `×2`; il bitrate totale non entra nella
+classifica e serve soltanto al limite opzionale. Le motivazioni mostrano la
+decisione in forma breve e aggiungono `Indicativa` solo in presenza di dati
+incompleti o non direttamente confrontabili.
 
 Ogni scheda mostra risoluzione, codec/HDR, bitrate video e totale, dimensione
 del file e della traccia video, oltre alla motivazione della proposta. Eventuali

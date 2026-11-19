@@ -136,9 +136,9 @@ async function emitLog(listener, event) {
 function errorPayload(reason) {
   if (!(reason instanceof Error)) return { name: "Error", message: String(reason) };
   const payload = { name: reason.name, message: reason.message };
-  const record2 = reason;
+  const record4 = reason;
   for (const key of ["status", "code", "analysis", "details", "response"]) {
-    if (record2[key] !== void 0) payload[key] = record2[key];
+    if (record4[key] !== void 0) payload[key] = record4[key];
   }
   return payload;
 }
@@ -243,8 +243,8 @@ function imdbSearchUrl(item2, fallbackYear) {
 function arrayField(value, key) {
   return isRecord2(value) && Array.isArray(value[key]) ? value[key] : [];
 }
-async function fillMissingEnglishOverviews(candidates, request2) {
-  return Promise.all(candidates.map(async (item2) => {
+async function fillMissingEnglishOverviews(candidates2, request2) {
+  return Promise.all(candidates2.map(async (item2) => {
     if (item2.overview.trim()) return item2;
     try {
       const details = await request2(`/${item2.mediaKind}/${item2.id}`, { language: "en-US" });
@@ -266,13 +266,13 @@ async function searchTmdb(input, request2) {
       language: "it-IT"
     });
     const key = input.mediaKind === "movie" ? "movie_results" : "tv_results";
-    const candidates2 = arrayField(found2, key).map((item2) => candidate(
+    const candidates3 = arrayField(found2, key).map((item2) => candidate(
       item2,
       input.mediaKind,
       `https://www.imdb.com/title/${input.imdbId}/`
     )).filter((item2) => item2 !== null);
-    if (candidates2.length === 1) {
-      return { method: "imdb", candidates: await fillMissingEnglishOverviews(candidates2, request2) };
+    if (candidates3.length === 1) {
+      return { method: "imdb", candidates: await fillMissingEnglishOverviews(candidates3, request2) };
     }
   }
   const params = {
@@ -283,8 +283,8 @@ async function searchTmdb(input, request2) {
   };
   if (year) params[input.mediaKind === "tv" ? "first_air_date_year" : "year"] = year;
   const found = await request2(`/search/${input.mediaKind}`, params);
-  const candidates = arrayField(found, "results").map((item2) => candidate(item2, input.mediaKind)).filter((item2) => item2 !== null).slice(0, 10).map((item2) => ({ ...item2, imdbUrl: imdbSearchUrl(item2, year) }));
-  return { method: "title", candidates: await fillMissingEnglishOverviews(candidates, request2) };
+  const candidates2 = arrayField(found, "results").map((item2) => candidate(item2, input.mediaKind)).filter((item2) => item2 !== null).slice(0, 10).map((item2) => ({ ...item2, imdbUrl: imdbSearchUrl(item2, year) }));
+  return { method: "title", candidates: await fillMissingEnglishOverviews(candidates2, request2) };
 }
 
 // src/domain/taskflow-url.ts
@@ -641,8 +641,8 @@ function filenames(items) {
 }
 function selectDefaultEmbySeason(seasons) {
   const normal = seasons.filter((season) => season.number > 0);
-  const candidates = normal.length ? normal : seasons;
-  return candidates.reduce((latest, season) => latest === null || season.number > latest.number ? season : latest, null);
+  const candidates2 = normal.length ? normal : seasons;
+  return candidates2.reduce((latest, season) => latest === null || season.number > latest.number ? season : latest, null);
 }
 function episodeOneFilenames(items) {
   return filenames(items.filter((item2) => item2.indexNumber === 1));
@@ -805,7 +805,8 @@ var sourceOrder = [
   "letterboxd",
   "trakt",
   "rogerebert",
-  "myanimelist"
+  "myanimelist",
+  "justwatch"
 ];
 var labels = {
   imdb: "IMDb",
@@ -816,7 +817,8 @@ var labels = {
   letterboxd: "Letterboxd",
   trakt: "Trakt",
   rogerebert: "Roger Ebert",
-  myanimelist: "MyAnimeList"
+  myanimelist: "MyAnimeList",
+  justwatch: "JustWatch"
 };
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -835,6 +837,36 @@ function ratingValue(source, value) {
   if (source === "tomatoes" || source === "popcorn" || source === "trakt") return `${textValue(value)}%`;
   if (source === "rogerebert") return `${textValue(value)}/4`;
   return textValue(value);
+}
+function searchQuery(input) {
+  return [input.title.trim(), input.year.trim()].filter(Boolean).join(" ");
+}
+function queryUrl(origin, pathname, key, value) {
+  const url = new URL(pathname, origin);
+  url.searchParams.set(key, value);
+  return url.toString();
+}
+function providerSearchUrl(source, input) {
+  const query2 = searchQuery(input);
+  if (source === "imdb") return queryUrl("https://www.imdb.com", "/find/", "q", query2) + "&s=tt";
+  if (source === "tomatoes" || source === "popcorn") {
+    return queryUrl("https://www.rottentomatoes.com", "/search", "search", query2);
+  }
+  if (source === "metacritic" || source === "metacriticuser") {
+    return `https://www.metacritic.com/search/${encodeURIComponent(query2)}/`;
+  }
+  if (source === "letterboxd") return `https://letterboxd.com/search/${encodeURIComponent(query2)}/`;
+  if (source === "trakt") {
+    return `https://trakt.tv/search/tmdb/${input.tmdbId}?id_type=${input.mediaKind === "movie" ? "movie" : "show"}`;
+  }
+  if (source === "rogerebert") return queryUrl("https://www.rogerebert.com", "/search", "query", query2);
+  if (source === "myanimelist") {
+    const url = new URL("/anime.php", "https://myanimelist.net");
+    url.searchParams.set("q", query2);
+    url.searchParams.set("cat", "anime");
+    return url.toString();
+  }
+  return queryUrl("https://www.justwatch.com", "/it/cerca", "q", query2);
 }
 function sourceUrl(source, item2, ratings, ids, mediaKind) {
   const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
@@ -872,18 +904,22 @@ function normalizeMdbListMedia(value, input) {
   const rawRatings = Array.isArray(body.ratings) ? body.ratings.map(record).filter((item2) => item2 !== null) : [];
   const ratings = [];
   for (const source of sourceOrder) {
-    const item2 = rawRatings.find((candidate2) => candidate2.source === source);
-    if (!item2) continue;
+    const item2 = rawRatings.find((candidate2) => candidate2.source === source) ?? {};
     const valueNumber = finiteValue(item2.value);
-    const url = sourceUrl(source, item2, rawRatings, ids, input.mediaKind);
-    if (valueNumber === null || !url) continue;
+    const url = sourceUrl(source, item2, rawRatings, ids, input.mediaKind) ?? providerSearchUrl(source, input);
     const votes = Number.isSafeInteger(item2.votes) && Number(item2.votes) >= 0 ? Number(item2.votes) : null;
-    ratings.push({ source, label: labels[source], value: ratingValue(source, valueNumber), votes, url });
+    ratings.push({
+      source,
+      label: labels[source],
+      value: valueNumber === null ? null : ratingValue(source, valueNumber),
+      votes,
+      url
+    });
   }
   const imdb = typeof ids.imdb === "string" && /^tt\d+$/.test(ids.imdb) ? ids.imdb : "";
   const awardsText = typeof body.awards === "string" ? body.awards.trim() : "";
   const awards = awardsText && awardsText !== "N/A" && imdb ? { text: awardsText, url: `https://www.imdb.com/title/${imdb}/awards/` } : null;
-  return { ratings, awards };
+  return { ratings, awards, imdbId: imdb || null };
 }
 
 // src/background/mdblist-client.ts
@@ -919,6 +955,147 @@ var MdbListClient = class {
       throw new Error(message.split(this.#apiKey).join("[redacted]"));
     }
     return normalizeMdbListMedia(body, input);
+  }
+};
+
+// src/background/justwatch-client.ts
+var query = `query GetRating($country: Country!, $language: Language!, $query: String!) {
+  popularTitles(country: $country, filter: {searchQuery: $query}, first: 10) {
+    edges {
+      node {
+        id
+        objectType
+        content(country: $country, language: $language) {
+          title
+          originalReleaseYear
+          fullPath
+          externalIds { imdbId }
+          scoring { jwRating }
+        }
+      }
+    }
+  }
+}`;
+function record2(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function normalize(value) {
+  return typeof value === "string" ? value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() : "";
+}
+function safeUrl(path, mediaKind) {
+  if (typeof path !== "string" || !path.startsWith("/it/")) return null;
+  const prefix = mediaKind === "movie" ? "/it/film/" : "/it/serie-tv/";
+  try {
+    const url = new URL(path, "https://www.justwatch.com");
+    return url.origin === "https://www.justwatch.com" && url.pathname.startsWith(prefix) && !url.username && !url.password && !url.search && !url.hash ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+function candidates(value) {
+  const body = record2(value);
+  const data = record2(body?.data);
+  const popular = record2(data?.popularTitles);
+  const edges = Array.isArray(popular?.edges) ? popular.edges : [];
+  return edges.flatMap((edge) => {
+    const node = record2(record2(edge)?.node);
+    const content = record2(node?.content);
+    const externalIds = record2(content?.externalIds);
+    const scoring = record2(content?.scoring);
+    if (!node || !content || typeof node.objectType !== "string" || typeof content.title !== "string" || !Number.isInteger(content.originalReleaseYear)) return [];
+    const rawRating = scoring?.jwRating;
+    return [{
+      objectType: node.objectType,
+      title: content.title,
+      year: Number(content.originalReleaseYear),
+      fullPath: content.fullPath,
+      imdbId: typeof externalIds?.imdbId === "string" ? externalIds.imdbId : "",
+      rating: typeof rawRating === "number" && Number.isFinite(rawRating) && rawRating >= 0 && rawRating <= 1 ? rawRating : null
+    }];
+  });
+}
+var JustWatchClient = class {
+  #fetcher;
+  constructor(fetcher = (request2) => fetch(request2)) {
+    this.#fetcher = fetcher;
+  }
+  async lookup(input) {
+    const title = input.title.trim();
+    if (!title || !/^\d{4}$/.test(input.year)) return null;
+    const request2 = new Request("https://apis.justwatch.com/graphql", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: { country: "IT", language: "it", query: title }
+      })
+    });
+    const response = await this.#fetcher(request2);
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error("JustWatch ha restituito JSON non valido.");
+    }
+    if (!response.ok) throw new Error(`JustWatch ha risposto HTTP ${response.status}.`);
+    const expectedType = input.mediaKind === "movie" ? "MOVIE" : "SHOW";
+    const typed = candidates(body).filter((candidate2) => candidate2.objectType === expectedType);
+    const validImdb = typeof input.imdbId === "string" && /^tt\d+$/.test(input.imdbId) ? input.imdbId : "";
+    const imdbMatches = validImdb ? typed.filter((candidate2) => candidate2.imdbId === validImdb) : [];
+    if (imdbMatches.length > 1) return null;
+    const titleMatches = typed.filter((candidate2) => normalize(candidate2.title) === normalize(title) && candidate2.year === Number(input.year));
+    const selected = imdbMatches[0] ?? (titleMatches.length === 1 ? titleMatches[0] : null);
+    if (!selected) return null;
+    const url = safeUrl(selected.fullPath, input.mediaKind);
+    if (!url) return null;
+    return {
+      source: "justwatch",
+      label: "JustWatch",
+      value: selected.rating === null ? null : `${Math.round(selected.rating * 100)}%`,
+      votes: null,
+      url
+    };
+  }
+};
+
+// src/background/omdb-client.ts
+function record3(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+var OmdbClient = class {
+  #apiKey;
+  #fetcher;
+  constructor(apiKey, fetcher = (request2) => fetch(request2)) {
+    this.#apiKey = apiKey.trim();
+    if (!this.#apiKey) throw new Error("Configura la API key OMDb.");
+    this.#fetcher = fetcher;
+  }
+  async lookupAwards(imdbId) {
+    if (!/^tt\d+$/.test(imdbId)) return null;
+    const url = new URL("https://www.omdbapi.com/");
+    url.searchParams.set("apikey", this.#apiKey);
+    url.searchParams.set("i", imdbId);
+    let response;
+    try {
+      response = await this.#fetcher(new Request(url, { headers: { accept: "application/json" } }));
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Connessione a OMDb non riuscita.";
+      throw new Error(message.split(this.#apiKey).join("[redacted]"));
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error("OMDb ha restituito JSON non valido.");
+    }
+    const data = record3(body) ?? {};
+    if (!response.ok) {
+      const message = typeof data.Error === "string" ? data.Error : `OMDb ha risposto HTTP ${response.status}.`;
+      throw new Error(message.split(this.#apiKey).join("[redacted]"));
+    }
+    if (data.Response === "False") return null;
+    const text = typeof data.Awards === "string" ? data.Awards.trim() : "";
+    return text && text !== "N/A" ? { text, url: `https://www.imdb.com/title/${imdbId}/awards/` } : null;
   }
 };
 
@@ -1183,9 +1360,9 @@ function serializeError(reason) {
     message: reason instanceof Error ? reason.message : "Operazione non riuscita."
   };
   if (reason !== null && typeof reason === "object") {
-    const record2 = reason;
+    const record4 = reason;
     for (const key of ["status", "code", "details"]) {
-      if (record2[key] !== void 0) serialized[key] = record2[key];
+      if (record4[key] !== void 0) serialized[key] = record4[key];
     }
   }
   return serialized;
@@ -1225,6 +1402,13 @@ async function handle(message, sender) {
     const emby = await loadEmbySettings();
     if (!emby.baseUrl || !emby.token) throw new Error("Emby non configurato in config.local.json.");
     return new EmbyClient(emby.baseUrl, emby.token).lookupSeasonEpisodeOne(seriesId, seasonId);
+  }
+  if (message.action === "justwatch.lookup") {
+    return new JustWatchClient().lookup(message.input);
+  }
+  if (message.action === "omdb.awards") {
+    const settings2 = await loadSettings();
+    return new OmdbClient(settings2.omdbApiKey).lookupAwards(typeof message.imdbId === "string" ? message.imdbId : "");
   }
   if (message.action === "taskflow.quickWorkflow") {
     let logRunId = null;

@@ -10,6 +10,8 @@
     "https://laforestaincantata.org/*",
     "https://api.themoviedb.org/*",
     "https://api.mdblist.com/*",
+    "https://apis.justwatch.com/*",
+    "https://www.omdbapi.com/*",
     "https://taskflow.redprimrose.mov/*"
   ],
   "optional_host_permissions": [

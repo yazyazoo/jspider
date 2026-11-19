@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TechnicalInfo } from '../../src/domain/models';
-import { formatTechnicalSummary } from '../../src/sidebar/technical-summary';
+// @vitest-environment jsdom
+import { formatTechnicalSummary, renderTechnicalSummary } from '../../src/sidebar/technical-summary';
 
 function technical(overrides: Partial<TechnicalInfo> = {}): TechnicalInfo {
   return {
@@ -25,5 +26,14 @@ describe('version technical summary', () => {
     expect(formatTechnicalSummary(technical({ totalBytes: null, videoBytes: null }))).toContain(
       'File — · Traccia video —',
     );
+  });
+
+  it('renders the complete technical summary in bold', () => {
+    const node = renderTechnicalSummary(document, technical());
+
+    expect(node.tagName).toBe('P');
+    expect(node.classList.contains('version-technical')).toBe(true);
+    expect(node.querySelector('strong')?.textContent).toBe(formatTechnicalSummary(technical()));
+    expect(node.textContent).toBe(formatTechnicalSummary(technical()));
   });
 });

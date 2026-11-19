@@ -135,6 +135,50 @@ describe('background Quick Workflow log actions', () => {
         error: { message: 'Identificatore Emby non valido.' },
       });
   });
+
+  it('serves a keyless JustWatch lookup without loading saved settings', async () => {
+    vi.mocked(fetch).mockImplementation(async (request) => {
+      const url = request instanceof Request ? request.url : request.toString();
+      if (url === 'https://apis.justwatch.com/graphql') {
+        return json({ data: { popularTitles: { edges: [{ node: {
+          id: 'tm72398', objectType: 'MOVIE', content: {
+            title: 'Alien', originalReleaseYear: 1979, fullPath: '/it/film/alien',
+            externalIds: { imdbId: 'tt0078748' }, scoring: { jwRating: 0.970576782193 },
+          },
+        } }] } } });
+      }
+      return json({}, 404);
+    });
+
+    await expect(send('justwatch.lookup', { input: {
+      tmdbId: 348, mediaKind: 'movie', title: 'Alien', year: '1979', imdbId: 'tt0078748',
+    } })).resolves.toMatchObject({
+      ok: true,
+      data: { source: 'justwatch', value: '97%', url: 'https://www.justwatch.com/it/film/alien' },
+    });
+  });
+
+  it('serves OMDb awards using the configured key', async () => {
+    values['jspider.settings'] = {
+      taskflowBaseUrl: 'https://taskflow.example', taskflowToken: '',
+      tmdbCredential: '', omdbApiKey: 'omdb-secret', mdblistApiKey: '',
+    };
+    vi.mocked(fetch).mockImplementation(async (request) => {
+      const url = new URL(request instanceof Request ? request.url : request.toString());
+      if (url.protocol === 'chrome-extension:') return json({});
+      if (url.origin === 'https://www.omdbapi.com') {
+        expect(url.searchParams.get('apikey')).toBe('omdb-secret');
+        expect(url.searchParams.get('i')).toBe('tt15398776');
+        return json({ Response: 'True', Awards: 'Won 7 Oscars' });
+      }
+      return json({}, 404);
+    });
+
+    await expect(send('omdb.awards', { imdbId: 'tt15398776' })).resolves.toEqual({
+      ok: true,
+      data: { text: 'Won 7 Oscars', url: 'https://www.imdb.com/title/tt15398776/awards/' },
+    });
+  });
 });
 
 function configureSuccessfulTaskFlow(): void {

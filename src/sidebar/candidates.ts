@@ -16,10 +16,11 @@ const ratingLogos: Record<MediaRating['source'], string> = {
   trakt: 'trakt.png',
   rogerebert: 'roger-ebert.png',
   myanimelist: 'myanimelist.png',
+  justwatch: 'justwatch.svg',
 };
 
-function ratingLogo(source: MediaRating['source'], value: string): string {
-  const numericValue = Number.parseFloat(value);
+function ratingLogo(source: MediaRating['source'], value: string | null): string {
+  const numericValue = value === null ? Number.NaN : Number.parseFloat(value);
   if (source === 'tomatoes' && numericValue < 60) return 'rotten-tomatoes-rotten.png';
   if (source === 'popcorn' && numericValue < 60) return 'rotten-audience-rotten.png';
   return ratingLogos[source];
@@ -30,7 +31,7 @@ function ratingLink(
   source: string,
   logoFile: string | null,
   sourceLabel: string,
-  value: string,
+  value: string | null,
   href: string,
   title: string,
 ): HTMLAnchorElement {
@@ -50,10 +51,13 @@ function ratingLink(
     icon.textContent = sourceLabel;
     icon.setAttribute('aria-hidden', 'true');
   }
-  const score = document.createElement('span');
-  score.className = 'rating-value';
-  score.textContent = value;
-  link.append(icon, score);
+  link.append(icon);
+  if (value) {
+    const score = document.createElement('span');
+    score.className = 'rating-value';
+    score.textContent = value;
+    link.append(score);
+  }
   return link;
 }
 
@@ -64,15 +68,19 @@ function renderRatings(
 ): HTMLElement | null {
   const container = document.createElement('div');
   container.className = 'candidate-ratings';
-  if (candidate.voteAverage !== null && candidate.voteCount > 0) {
-    const value = candidate.voteAverage.toFixed(1);
-    const votes = new Intl.NumberFormat('it-IT').format(candidate.voteCount);
-    container.append(ratingLink(
-      document, 'tmdb', 'tmdb.png', 'TMDB', value, candidate.url, `TMDB: ${value} · ${votes} voti`,
-    ));
-  }
+  const tmdbValue = candidate.voteAverage === null ? null : candidate.voteAverage.toFixed(1);
+  const tmdbTitle = tmdbValue === null
+    ? 'Apri su TMDB'
+    : `TMDB: ${tmdbValue}${candidate.voteCount > 0
+      ? ` · ${new Intl.NumberFormat('it-IT').format(candidate.voteCount)} voti` : ''}`;
+  container.append(ratingLink(
+    document, 'tmdb', 'tmdb.png', 'TMDB', tmdbValue, candidate.url, tmdbTitle,
+  ));
   for (const rating of enrichment?.ratings ?? []) {
     const votes = rating.votes === null ? '' : ` · ${new Intl.NumberFormat('it-IT').format(rating.votes)} voti`;
+    const title = rating.value === null
+      ? `Apri ${rating.label}`
+      : `${rating.label}: ${rating.value}${votes}`;
     container.append(ratingLink(
       document,
       rating.source,
@@ -80,7 +88,7 @@ function renderRatings(
       rating.label,
       rating.value,
       rating.url,
-      `${rating.label}: ${rating.value}${votes}`,
+      title,
     ));
   }
   if (enrichment?.awards) {

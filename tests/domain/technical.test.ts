@@ -56,14 +56,30 @@ describe('parseTechnicalReport', () => {
 });
 
 describe('recommendVersions', () => {
-  it('preselects 4K and 1080p while flagging cross-codec comparisons as uncertain', () => {
+  it('uses HEVC AVC-equivalent video bitrate when codecs differ', () => {
     const result = recommendVersions([
-      variant('4k', 2160, 'HEVC', 20_000_000),
-      variant('avc', 1080, 'H264', 9_000_000),
-      variant('hevc', 1080, 'HEVC', 5_000_000),
+      variant('4k', 2160, 'HEVC', 20_000_000, 'encode'),
+      variant('avc', 1080, 'H264', 9_000_000, 'encode'),
+      variant('hevc', 1080, 'HEVC', 5_000_000, 'encode'),
     ], '4k1080', 0);
-    expect(result.keys).toEqual(['4k', 'avc']);
-    expect(result.notes.join(' ')).toMatch(/incert|indicativ/i);
+    expect(result.keys).toEqual(['4k', 'hevc']);
+    expect(result.reasons.hevc).toBe(
+      'Proposta: HEVC 5 Mb/s · equiv. AVC 10 Mb/s. Indicativa: bit depth diversa.',
+    );
+    expect(result.reasons.avc).toBe('Alternativa: AVC 9 Mb/s.');
+    expect(result.notes).toEqual([]);
+  });
+
+  it('prefers HEVC 2.9 Mb/s to AVC 3 Mb/s within the same priority pool', () => {
+    const result = recommendVersions([
+      variant('avc', 1080, 'H264', 3_000_000, 'encode'),
+      variant('hevc', 1080, 'HEVC', 2_900_000, 'encode'),
+    ], '4k1080', 0);
+
+    expect(result.keys).toEqual(['hevc']);
+    expect(result.reasons.hevc).toBe(
+      'Proposta: HEVC 2,9 Mb/s · equiv. AVC 5,8 Mb/s. Indicativa: bit depth diversa.',
+    );
   });
 
   it('prefers source preservation over an encode without a codec multiplier', () => {
@@ -79,7 +95,9 @@ describe('recommendVersions', () => {
     const encode = variant('encode', 1080, 'HEVC', 7_000_000, 'encode');
     encode.technical.overallBitrate = 10_000_000;
     expect(recommendVersions([source, encode], '4k1080', 0).keys).toEqual(['source']);
-    expect(recommendVersions([source, encode], '4k1080', 35).keys).toEqual(['encode']);
+    const limited = recommendVersions([source, encode], '4k1080', 35);
+    expect(limited.keys).toEqual(['encode']);
+    expect(limited.reasons.source).toBe('Esclusa: bitrate totale oltre il limite.');
   });
 
   it('compares each season independently and manual mode never preselects', () => {
@@ -87,8 +105,31 @@ describe('recommendVersions', () => {
       { ...variant(`s${season}-avc`, 1080, 'H264', 9_000_000, 'encode'), season },
       { ...variant(`s${season}-hevc`, 1080, 'HEVC', 5_000_000, 'encode'), season },
     ]);
-    expect(recommendVersions(seasonal, '4k1080', 0).keys).toEqual(['s1-avc', 's2-avc']);
+    expect(recommendVersions(seasonal, '4k1080', 0).keys).toEqual(['s1-hevc', 's2-hevc']);
     expect(recommendVersions(seasonal, 'manual', 0).keys).toEqual([]);
+  });
+
+  it('keeps unsupported cross-codec comparisons concise and indicative', () => {
+    const result = recommendVersions([
+      variant('avc', 1080, 'H264', 5_000_000, 'encode'),
+      variant('other', 1080, 'VP9', 6_000_000, 'encode'),
+    ], '4k1080', 0);
+
+    expect(result.keys).toEqual(['other']);
+    expect(result.reasons.other).toBe('Proposta: VP9 6 Mb/s. Indicativa: codec non confrontabili.');
+    expect(result.notes).toEqual(['4K: nessuna versione disponibile.']);
+  });
+
+  it('does not call multiple candidates unique when video bitrate is missing', () => {
+    const result = recommendVersions([
+      variant('avc', 1080, 'H264', null, 'encode'),
+      variant('hevc', 1080, 'HEVC', null, 'encode'),
+    ], '4k1080', 0);
+
+    expect(result.keys).toEqual(['hevc']);
+    expect(result.reasons.hevc).toBe(
+      'Proposta: bitrate video non disponibile. Indicativa: dati incompleti · bit depth diversa.',
+    );
   });
 });
 

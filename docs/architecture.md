@@ -34,15 +34,18 @@ portable in-page overlay used by Chromium browsers.
 
 The sidebar never connects directly to JD and does not store the Emby token.
 Sensitive API calls are sent to the extension background service worker.
-Candidate cards show the native TMDB score immediately, then add available
-MDBList ratings and awards asynchronously without blocking validation.
+Candidate cards always expose provider links, then add available MDBList ratings,
+awards, and the keyless JustWatch rating asynchronously without blocking validation.
 
 ## Background and domain layers
 
 `src/background/` owns settings and HTTP clients. TaskFlow uses the same
 administrative Bearer token as its WebUI. TMDB supports a read token or v3 key.
 Emby sends its token only as `X-Emby-Token` and performs GET requests. MDBList
-is queried by TMDB ID and media kind; missing or failed enrichment is omitted.
+is queried by TMDB ID and media kind. JustWatch uses a keyless GraphQL lookup,
+prefers an IMDb match, and falls back to exact title, year, and media kind.
+Missing data or failed enrichment removes only the value; the provider search
+link remains available.
 For an exact TV-series match, the Emby client retrieves the season catalog,
 loads episode 1 for the latest normal season, and exposes lazy read-only season
 lookups to the sidebar. The sidebar caches only seasons opened for the current
@@ -52,7 +55,8 @@ validated title and rejects stale asynchronous results.
 submission analysis, workflow payload construction, and Emby presence
 resolution. TaskFlow package identifiers remain opaque strings.
 
-OMDb currently has configuration storage only; there is no OMDb network client.
+OMDb is queried by IMDb ID only when MDBList did not return awards. It does not
+supply ratings to JSpider, never overwrites MDBList, and every failure is non-blocking.
 
 ## TaskFlow and JD boundary
 

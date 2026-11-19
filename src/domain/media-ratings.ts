@@ -9,12 +9,13 @@ export type MediaRatingSource =
   | 'letterboxd'
   | 'trakt'
   | 'rogerebert'
-  | 'myanimelist';
+  | 'myanimelist'
+  | 'justwatch';
 
 export interface MediaRating {
   source: MediaRatingSource;
   label: string;
-  value: string;
+  value: string | null;
   votes: number | null;
   url: string;
 }
@@ -27,16 +28,19 @@ export interface MediaAwards {
 export interface MediaRatings {
   ratings: MediaRating[];
   awards: MediaAwards | null;
+  imdbId: string | null;
 }
 
 export interface MdbListLookupInput {
   tmdbId: number;
   mediaKind: MediaKind;
+  title: string;
+  year: string;
 }
 
 const sourceOrder: MediaRatingSource[] = [
   'imdb', 'tomatoes', 'popcorn', 'metacritic', 'metacriticuser',
-  'letterboxd', 'trakt', 'rogerebert', 'myanimelist',
+  'letterboxd', 'trakt', 'rogerebert', 'myanimelist', 'justwatch',
 ];
 
 const labels: Record<MediaRatingSource, string> = {
@@ -49,6 +53,7 @@ const labels: Record<MediaRatingSource, string> = {
   trakt: 'Trakt',
   rogerebert: 'Roger Ebert',
   myanimelist: 'MyAnimeList',
+  justwatch: 'JustWatch',
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -73,6 +78,39 @@ function ratingValue(source: MediaRatingSource, value: number): string {
   if (source === 'tomatoes' || source === 'popcorn' || source === 'trakt') return `${textValue(value)}%`;
   if (source === 'rogerebert') return `${textValue(value)}/4`;
   return textValue(value);
+}
+
+function searchQuery(input: MdbListLookupInput): string {
+  return [input.title.trim(), input.year.trim()].filter(Boolean).join(' ');
+}
+
+function queryUrl(origin: string, pathname: string, key: string, value: string): string {
+  const url = new URL(pathname, origin);
+  url.searchParams.set(key, value);
+  return url.toString();
+}
+
+function providerSearchUrl(source: MediaRatingSource, input: MdbListLookupInput): string {
+  const query = searchQuery(input);
+  if (source === 'imdb') return queryUrl('https://www.imdb.com', '/find/', 'q', query) + '&s=tt';
+  if (source === 'tomatoes' || source === 'popcorn') {
+    return queryUrl('https://www.rottentomatoes.com', '/search', 'search', query);
+  }
+  if (source === 'metacritic' || source === 'metacriticuser') {
+    return `https://www.metacritic.com/search/${encodeURIComponent(query)}/`;
+  }
+  if (source === 'letterboxd') return `https://letterboxd.com/search/${encodeURIComponent(query)}/`;
+  if (source === 'trakt') {
+    return `https://trakt.tv/search/tmdb/${input.tmdbId}?id_type=${input.mediaKind === 'movie' ? 'movie' : 'show'}`;
+  }
+  if (source === 'rogerebert') return queryUrl('https://www.rogerebert.com', '/search', 'query', query);
+  if (source === 'myanimelist') {
+    const url = new URL('/anime.php', 'https://myanimelist.net');
+    url.searchParams.set('q', query);
+    url.searchParams.set('cat', 'anime');
+    return url.toString();
+  }
+  return queryUrl('https://www.justwatch.com', '/it/cerca', 'q', query);
 }
 
 function sourceUrl(
@@ -122,19 +160,24 @@ export function normalizeMdbListMedia(value: unknown, input: MdbListLookupInput)
     : [];
   const ratings: MediaRating[] = [];
   for (const source of sourceOrder) {
-    const item = rawRatings.find((candidate) => candidate.source === source);
-    if (!item) continue;
+    const item = rawRatings.find((candidate) => candidate.source === source) ?? {};
     const valueNumber = finiteValue(item.value);
-    const url = sourceUrl(source, item, rawRatings, ids, input.mediaKind);
-    if (valueNumber === null || !url) continue;
+    const url = sourceUrl(source, item, rawRatings, ids, input.mediaKind)
+      ?? providerSearchUrl(source, input);
     const votes = Number.isSafeInteger(item.votes) && Number(item.votes) >= 0 ? Number(item.votes) : null;
-    ratings.push({ source, label: labels[source], value: ratingValue(source, valueNumber), votes, url });
+    ratings.push({
+      source,
+      label: labels[source],
+      value: valueNumber === null ? null : ratingValue(source, valueNumber),
+      votes,
+      url,
+    });
   }
   const imdb = typeof ids.imdb === 'string' && /^tt\d+$/.test(ids.imdb) ? ids.imdb : '';
   const awardsText = typeof body.awards === 'string' ? body.awards.trim() : '';
   const awards = awardsText && awardsText !== 'N/A' && imdb
     ? { text: awardsText, url: `https://www.imdb.com/title/${imdb}/awards/` }
     : null;
-  return { ratings, awards };
+  return { ratings, awards, imdbId: imdb || null };
 }
 

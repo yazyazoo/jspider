@@ -65,13 +65,15 @@ operator confirmation.
 
 Editing title, year or type clears the previous validation and Emby result.
 
-When MDBList is configured, each compact candidate card adds the available IMDb,
-Rotten Tomatoes critics and audience, Metacritic, Trakt, Letterboxd and other
-supported ratings as recognizable logo-and-score links. The overview is limited
+Each compact candidate card always shows links for TMDB, IMDb, Rotten Tomatoes
+critics and audience, Metacritic, Trakt, Letterboxd, JustWatch, and the other
+supported sources. An available score appears beside its logo; otherwise the
+logo remains clickable. MDBList supplies its ratings and awards when configured;
+when awards are missing, OMDb may fill them without ever overwriting MDBList.
+JustWatch is queried without a key and never blocks the flow. The overview is limited
 to three lines; **Leggi tutto** expands it and **Mostra meno** collapses it.
-This keeps the poster, metadata and actions together. Awards appear
-only when available; unavailable values are omitted and lookup failures do not
-block validation.
+This keeps the poster, metadata and actions together. Awards appear only when
+available; MDBList, OMDb, or JustWatch lookup failures do not block validation.
 
 ### Confirming metadata
 
@@ -123,6 +125,12 @@ Phase 2 selects which release versions become TaskFlow/JD packages.
 **Scarta sorgenti oltre · Mb/s totali** applies a total bitrate ceiling. Empty
 or `0` means unlimited. Recommendations use the available metadata and remain
 advisory; every checkbox can be changed manually.
+
+Within the same resolution and source-priority tier, JSpider compares only the
+video-track bitrate. Its equivalent-quality estimate uses the empirical factors
+AVC/H.264 `×1` and HEVC/H.265 `×2`; total bitrate does not affect ranking and is
+used only by the optional ceiling. Reasons state the decision briefly and add
+`Indicativa` only when data is incomplete or not directly comparable.
 
 Each version card shows resolution, codec/HDR, video and total bitrate, total
 file size, video-track size and an explanation of the proposal. A locked or

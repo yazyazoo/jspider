@@ -17,7 +17,7 @@ describe('normalizeMdbListMedia', () => {
         { source: 'rogerebert', value: 4, votes: null, url: 'oppenheimer-film-review-2023' },
         { source: 'myanimelist', value: 8.7, votes: 3000, url: null },
       ],
-    }, { tmdbId: 872585, mediaKind: 'movie' });
+    }, { tmdbId: 872585, mediaKind: 'movie', title: 'Oppenheimer', year: '2023' });
 
     expect(result.ratings.map(({ source, value, url }) => ({ source, value, url }))).toEqual([
       { source: 'imdb', value: '8.2', url: 'https://www.imdb.com/title/tt15398776/' },
@@ -29,25 +29,38 @@ describe('normalizeMdbListMedia', () => {
       { source: 'trakt', value: '83%', url: 'https://trakt.tv/movies/698292' },
       { source: 'rogerebert', value: '4/4', url: 'https://www.rogerebert.com/reviews/oppenheimer-film-review-2023' },
       { source: 'myanimelist', value: '8.7', url: 'https://myanimelist.net/anime/5114' },
+      { source: 'justwatch', value: null, url: 'https://www.justwatch.com/it/cerca?q=Oppenheimer+2023' },
     ]);
     expect(result.awards).toEqual({
       text: 'Won 7 Oscars. 370 wins & 378 nominations total',
       url: 'https://www.imdb.com/title/tt15398776/awards/',
     });
+    expect(result.imdbId).toBe('tt15398776');
   });
 
-  it('omits null, malformed, unknown and unclickable data', () => {
+  it('keeps every provider link when ratings and direct URLs are missing', () => {
     const result = normalizeMdbListMedia({
       ids: {}, awards: 'N/A', ratings: [
-        { source: 'imdb', value: 8.2 },
         { source: 'tomatoes', value: null, url: '/m/example' },
         { source: 'popcorn', value: Number.NaN, url: '/m/example' },
-        { source: 'letterboxd', value: 4.1, url: null },
         { source: 'unknown', value: 100, url: 'https://example.test' },
       ],
-    }, { tmdbId: 1, mediaKind: 'tv' });
+    }, { tmdbId: 1, mediaKind: 'tv', title: 'Example', year: '2026' });
 
-    expect(result).toEqual({ ratings: [], awards: null });
+    expect(result.ratings.map(({ source, value, url }) => ({ source, value, url }))).toEqual([
+      { source: 'imdb', value: null, url: 'https://www.imdb.com/find/?q=Example+2026&s=tt' },
+      { source: 'tomatoes', value: null, url: 'https://www.rottentomatoes.com/m/example' },
+      { source: 'popcorn', value: null, url: 'https://www.rottentomatoes.com/m/example' },
+      { source: 'metacritic', value: null, url: 'https://www.metacritic.com/search/Example%202026/' },
+      { source: 'metacriticuser', value: null, url: 'https://www.metacritic.com/search/Example%202026/' },
+      { source: 'letterboxd', value: null, url: 'https://letterboxd.com/search/Example%202026/' },
+      { source: 'trakt', value: null, url: 'https://trakt.tv/search/tmdb/1?id_type=show' },
+      { source: 'rogerebert', value: null, url: 'https://www.rogerebert.com/search?query=Example+2026' },
+      { source: 'myanimelist', value: null, url: 'https://myanimelist.net/anime.php?q=Example+2026&cat=anime' },
+      { source: 'justwatch', value: null, url: 'https://www.justwatch.com/it/cerca?q=Example+2026' },
+    ]);
+    expect(result.awards).toBeNull();
+    expect(result.imdbId).toBeNull();
   });
 
   it('uses TV-specific Metacritic and Trakt content URLs', () => {
@@ -56,12 +69,12 @@ describe('normalizeMdbListMedia', () => {
         { source: 'metacritic', value: 86, url: '/succession' },
         { source: 'trakt', value: 87 },
       ],
-    }, { tmdbId: 76331, mediaKind: 'tv' });
+    }, { tmdbId: 76331, mediaKind: 'tv', title: 'Succession', year: '2018' });
 
-    expect(result.ratings.map((rating) => rating.url)).toEqual([
-      'https://www.metacritic.com/tv/succession/',
-      'https://trakt.tv/shows/125479',
-    ]);
+    expect(result.ratings.find((rating) => rating.source === 'metacritic')?.url)
+      .toBe('https://www.metacritic.com/tv/succession/');
+    expect(result.ratings.find((rating) => rating.source === 'trakt')?.url)
+      .toBe('https://trakt.tv/shows/125479');
   });
 });
 

@@ -93,6 +93,7 @@ legend { padding: 0; font-size: 13px; font-weight: 600; margin-top: 12px; }
 .version-choice { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 13px; }
 .version-choice input { width: 17px; height: 17px; min-width: 17px; margin-top: 2px; accent-color: var(--accent); }
 .version-card p { margin-left: 27px; }
+.version-technical { font-weight: 700; }
 .version-reason { color: #b1dcca; }
 #limit { max-width: 160px; }
 #versions { margin-top: 12px; }

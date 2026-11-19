@@ -1,28 +1,89 @@
 import type { PageSnapshot } from '../domain/models';
 import type { CreateModeState } from '../domain/create-mode';
 import type { TmdbSearchInput, TmdbSearchResult } from '../domain/tmdb';
-import type { MediaRatings, MdbListLookupInput } from '../domain/media-ratings';
+import {
+  normalizeMdbListMedia,
+  type MediaAwards,
+  type MediaRatings,
+  type MdbListLookupInput,
+} from '../domain/media-ratings';
+import type { JustWatchLookupInput } from '../background/justwatch-client';
 import { shouldAutoSearchTmdb } from './state';
 
 export type TmdbSearch = (input: TmdbSearchInput) => Promise<TmdbSearchResult>;
 export type MediaRatingsLookup = (input: MdbListLookupInput) => Promise<MediaRatings>;
+export type JustWatchLookup = (input: JustWatchLookupInput) => Promise<MediaRatings['ratings'][number] | null>;
+export type OmdbAwardsLookup = (imdbId: string) => Promise<MediaAwards | null>;
+
+function directImdbId(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const match = url.origin === 'https://www.imdb.com'
+      ? url.pathname.match(/^\/title\/(tt\d+)\/?$/) : null;
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function loadCandidateEnrichments(
-  candidates: readonly { id: number; mediaKind: 'movie' | 'tv' }[],
+  candidates: readonly {
+    id: number;
+    mediaKind: 'movie' | 'tv';
+    title: string;
+    year: string;
+    imdbUrl?: string;
+  }[],
   configured: boolean,
   lookup: MediaRatingsLookup,
+  justWatchLookup: JustWatchLookup = async () => null,
+  omdbConfigured = false,
+  omdbAwardsLookup: OmdbAwardsLookup = async () => null,
 ): Promise<Map<number, MediaRatings>> {
   const enrichments = new Map<number, MediaRatings>();
-  if (!configured) return enrichments;
   await Promise.all(candidates.map(async (candidate) => {
-    try {
-      enrichments.set(candidate.id, await lookup({
-        tmdbId: candidate.id,
-        mediaKind: candidate.mediaKind,
-      }));
+    const input: MdbListLookupInput = {
+      tmdbId: candidate.id,
+      mediaKind: candidate.mediaKind,
+      title: candidate.title,
+      year: candidate.year,
+    };
+    let enrichment = normalizeMdbListMedia({}, input);
+    if (configured) try {
+      const loaded = await lookup(input);
+      const fallback = enrichment;
+      const bySource = new Map(fallback.ratings.map((rating) => [rating.source, rating]));
+      for (const rating of loaded.ratings) bySource.set(rating.source, rating);
+      enrichment = {
+        ratings: fallback.ratings.map((rating) => bySource.get(rating.source) ?? rating),
+        awards: loaded.awards,
+        imdbId: loaded.imdbId,
+      };
     } catch {
-      // Ratings are optional: one failed lookup must not hide the TMDB candidate.
+      // MDBList is optional; fallback provider searches remain available.
     }
+    const imdbId = enrichment.imdbId ?? directImdbId(candidate.imdbUrl);
+    if (imdbId !== enrichment.imdbId) enrichment = { ...enrichment, imdbId };
+    if (omdbConfigured && !enrichment.awards && imdbId) try {
+      const awards = await omdbAwardsLookup(imdbId);
+      if (awards) enrichment = { ...enrichment, awards };
+    } catch {
+      // OMDb awards are optional and must never block candidate validation.
+    }
+    try {
+      const justWatch = await justWatchLookup({ ...input, imdbId: enrichment.imdbId });
+      if (justWatch) {
+        enrichment = {
+          ...enrichment,
+          ratings: enrichment.ratings.map((rating) =>
+            rating.source === 'justwatch' ? justWatch : rating),
+        };
+      }
+    } catch {
+      // JustWatch is undocumented and must never hide the fallback link.
+    }
+    enrichments.set(candidate.id, enrichment);
   }));
   return enrichments;
 }

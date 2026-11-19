@@ -34,16 +34,18 @@ Gestisce inoltre l’overlay portabile nella pagina usato dai browser Chromium.
 
 La sidebar non si collega mai direttamente a JD e non conserva il token Emby.
 Le chiamate API sensibili vengono inoltrate al service worker dell’estensione.
-Le schede mostrano subito il voto nativo TMDB, poi aggiungono in modo asincrono
-i rating e i premi MDBList disponibili senza bloccare la validazione.
+Le schede mostrano sempre i collegamenti alle fonti e aggiungono in modo asincrono
+i rating e i premi MDBList disponibili e il rating JustWatch senza bloccare la validazione.
 
 ## Livelli background e dominio
 
 `src/background/` gestisce impostazioni e client HTTP. TaskFlow usa lo stesso
 token Bearer amministrativo della WebUI. TMDB accetta un token di lettura o una
 chiave v3. Emby invia il token solamente come `X-Emby-Token` ed esegue richieste
-GET. MDBList viene interrogato per ID TMDB e tipo di contenuto; dati mancanti o
-ricerche fallite vengono omessi.
+GET. MDBList viene interrogato per ID TMDB e tipo di contenuto. JustWatch usa
+una ricerca GraphQL senza chiave, privilegia la corrispondenza IMDb e ripiega su
+titolo, anno e tipo esatti. Dati mancanti o ricerche fallite rimuovono soltanto
+il valore: il collegamento di ricerca resta disponibile.
 Per una serie TV riconosciuta esattamente, il client Emby recupera il catalogo
 delle stagioni, carica l’episodio 1 dell’ultima stagione normale ed espone alla
 sidebar ricerche lazy in sola lettura per le altre stagioni. La sidebar conserva
@@ -54,8 +56,9 @@ asincrone obsolete.
 ordinata delle submission, costruzione dei payload workflow e risoluzione della
 presenza Emby. Gli identificatori package TaskFlow rimangono stringhe opache.
 
-OMDb dispone attualmente soltanto della configurazione; non esiste ancora un
-client di rete OMDb.
+OMDb viene interrogato tramite IMDb ID soltanto quando MDBList non ha restituito
+i premi. Non fornisce rating a JSpider, non sovrascrive mai MDBList e ogni errore
+rimane non bloccante.
 
 ## Confine TaskFlow e JD
 

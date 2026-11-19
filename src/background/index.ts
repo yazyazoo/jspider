@@ -17,6 +17,8 @@ import { EmbyClient } from './emby-client';
 import type { EmbyLookupInput } from '../domain/emby';
 import type { MdbListLookupInput } from '../domain/media-ratings';
 import { MdbListClient } from './mdblist-client';
+import { JustWatchClient, type JustWatchLookupInput } from './justwatch-client';
+import { OmdbClient } from './omdb-client';
 import {
   handleQuickWorkflowLogAction,
   QuickWorkflowLogStore,
@@ -99,6 +101,14 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
     if (!emby.baseUrl || !emby.token) throw new Error('Emby non configurato in config.local.json.');
     return new EmbyClient(emby.baseUrl, emby.token)
       .lookupSeasonEpisodeOne(seriesId, seasonId);
+  }
+  if (message.action === 'justwatch.lookup') {
+    return new JustWatchClient().lookup(message.input as JustWatchLookupInput);
+  }
+  if (message.action === 'omdb.awards') {
+    const settings = await loadSettings();
+    return new OmdbClient(settings.omdbApiKey)
+      .lookupAwards(typeof message.imdbId === 'string' ? message.imdbId : '');
   }
   if (message.action === 'taskflow.quickWorkflow') {
     let logRunId: string | null = null;

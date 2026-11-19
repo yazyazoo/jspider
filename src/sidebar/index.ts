@@ -41,7 +41,7 @@ import {
   type SettingsFields,
 } from './settings-form';
 import type { SettingsSummary } from '../background/settings';
-import { formatTechnicalSummary } from './technical-summary';
+import { renderTechnicalSummary } from './technical-summary';
 import { initializeFullWebUiToggle, type FullWebUiRuntime } from './full-webui';
 import { resolvePresetCleanup, type CleanupPreset } from './preset-cleanup';
 import type { EmbyLookupInput, EmbyPresenceResult } from '../domain/emby';
@@ -232,9 +232,7 @@ function renderVersions(): void {
     const title = document.createElement('strong');
     title.textContent = variant.packageName;
     label.append(checkbox, title);
-    const technical = document.createElement('p');
-    technical.className = 'muted small';
-    technical.textContent = formatTechnicalSummary(variant.technical);
+    const technical = renderTechnicalSummary(document, variant.technical);
     const reason = document.createElement('p');
     reason.className = 'version-reason small';
     reason.textContent = proposal.reasons[variant.key] ?? 'Scelta manuale.';
@@ -291,6 +289,9 @@ async function enrichCandidateRatings(current: readonly TmdbCandidate[]): Promis
     current,
     Boolean(settings?.mdblistConfigured),
     (lookupInput) => background('mdblist.lookup', { input: lookupInput }),
+    (lookupInput) => background('justwatch.lookup', { input: lookupInput }),
+    Boolean(settings?.omdbConfigured),
+    (imdbId) => background('omdb.awards', { imdbId }),
   ));
   if (!result) return;
   candidateRatings = result;

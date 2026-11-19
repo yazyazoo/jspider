@@ -125,24 +125,125 @@ describe('TMDB request ordering', () => {
 describe('candidate rating enrichment', () => {
   it('loads each candidate independently and omits failed lookups', async () => {
     const candidates = [
-      { id: 1, mediaKind: 'movie' as const },
-      { id: 2, mediaKind: 'tv' as const },
+      { id: 1, mediaKind: 'movie' as const, title: 'Film', year: '2026' },
+      { id: 2, mediaKind: 'tv' as const, title: 'Serie', year: '2025' },
     ];
     const result = await loadCandidateEnrichments(candidates, true, async (input) => {
       if (input.tmdbId === 2) throw new Error('unavailable');
-      return { ratings: [], awards: { text: 'Won', url: 'https://www.imdb.com/title/tt1/awards/' } };
+      expect(input).toEqual({ tmdbId: 1, mediaKind: 'movie', title: 'Film', year: '2026' });
+      return {
+        ratings: [],
+        awards: { text: 'Won', url: 'https://www.imdb.com/title/tt1/awards/' },
+        imdbId: 'tt1',
+      };
     });
 
-    expect([...result.keys()]).toEqual([1]);
+    expect([...result.keys()]).toEqual([1, 2]);
     expect(result.get(1)?.awards?.text).toBe('Won');
+    expect(result.get(2)?.ratings.find((rating) => rating.source === 'trakt')?.url)
+      .toBe('https://trakt.tv/search/tmdb/2?id_type=show');
   });
 
-  it('does not call MDBList when it is not configured', async () => {
+  it('keeps fallback provider links without calling MDBList when it is not configured', async () => {
     let called = false;
-    await expect(loadCandidateEnrichments(
-      [{ id: 1, mediaKind: 'movie' }], false, async () => { called = true; throw new Error(); },
-    )).resolves.toEqual(new Map());
+    const result = await loadCandidateEnrichments(
+      [{ id: 1, mediaKind: 'movie', title: 'Alien', year: '1979' }],
+      false,
+      async () => { called = true; throw new Error(); },
+    );
     expect(called).toBe(false);
+    expect(result.get(1)?.ratings.find((rating) => rating.source === 'imdb')?.url)
+      .toBe('https://www.imdb.com/find/?q=Alien+1979&s=tt');
+  });
+
+  it('overlays an exact JustWatch result and keeps the fallback when JustWatch fails', async () => {
+    const candidates = [
+      { id: 348, mediaKind: 'movie' as const, title: 'Alien', year: '1979' },
+      { id: 288120, mediaKind: 'tv' as const, title: 'Vienna Game', year: '2026' },
+    ];
+    const result = await loadCandidateEnrichments(
+      candidates,
+      true,
+      async (input) => ({
+        ratings: [], awards: null, imdbId: input.tmdbId === 348 ? 'tt0078748' : 'tt31844371',
+      }),
+      async (input) => {
+        if (input.tmdbId === 288120) throw new Error('endpoint cambiato');
+        expect(input.imdbId).toBe('tt0078748');
+        return {
+          source: 'justwatch', label: 'JustWatch', value: '97%', votes: null,
+          url: 'https://www.justwatch.com/it/film/alien',
+        };
+      },
+    );
+
+    expect(result.get(348)?.ratings.find((rating) => rating.source === 'justwatch'))
+      .toMatchObject({ value: '97%', url: 'https://www.justwatch.com/it/film/alien' });
+    expect(result.get(288120)?.ratings.find((rating) => rating.source === 'justwatch'))
+      .toMatchObject({ value: null, url: 'https://www.justwatch.com/it/cerca?q=Vienna+Game+2026' });
+  });
+
+  it('keeps MDBList awards and asks OMDb only for awards that are missing', async () => {
+    const omdbIds: string[] = [];
+    const result = await loadCandidateEnrichments(
+      [
+        { id: 1, mediaKind: 'movie', title: 'First', year: '2025', imdbUrl: 'https://www.imdb.com/title/tt1111111/' },
+        { id: 2, mediaKind: 'tv', title: 'Second', year: '2024', imdbUrl: 'https://www.imdb.com/title/tt2222222/' },
+      ],
+      true,
+      async (input) => ({
+        ratings: [],
+        awards: input.tmdbId === 1
+          ? { text: 'MDBList awards', url: 'https://www.imdb.com/title/tt1111111/awards/' }
+          : null,
+        imdbId: input.tmdbId === 1 ? 'tt1111111' : 'tt2222222',
+      }),
+      async () => null,
+      true,
+      async (imdbId) => {
+        omdbIds.push(imdbId);
+        return { text: 'OMDb awards', url: `https://www.imdb.com/title/${imdbId}/awards/` };
+      },
+    );
+
+    expect(omdbIds).toEqual(['tt2222222']);
+    expect(result.get(1)?.awards?.text).toBe('MDBList awards');
+    expect(result.get(2)?.awards?.text).toBe('OMDb awards');
+  });
+
+  it('falls back to the TMDB candidate IMDb ID when MDBList fails', async () => {
+    const omdbIds: string[] = [];
+    const result = await loadCandidateEnrichments(
+      [
+        { id: 1, mediaKind: 'movie', title: 'Alien', year: '1979', imdbUrl: 'https://www.imdb.com/title/tt0078748/' },
+        { id: 2, mediaKind: 'movie', title: 'Unknown', year: '2026', imdbUrl: 'https://www.imdb.com/find/?q=Unknown+2026&s=tt' },
+      ],
+      true,
+      async () => { throw new Error('MDBList unavailable'); },
+      async () => null,
+      true,
+      async (imdbId) => {
+        omdbIds.push(imdbId);
+        return { text: 'Recovered awards', url: `https://www.imdb.com/title/${imdbId}/awards/` };
+      },
+    );
+
+    expect(omdbIds).toEqual(['tt0078748']);
+    expect(result.get(1)?.awards?.text).toBe('Recovered awards');
+    expect(result.get(2)?.awards).toBeNull();
+  });
+
+  it('keeps missing awards non-blocking when OMDb fails', async () => {
+    const result = await loadCandidateEnrichments(
+      [{ id: 1, mediaKind: 'movie', title: 'Alien', year: '1979', imdbUrl: 'https://www.imdb.com/title/tt0078748/' }],
+      false,
+      async () => { throw new Error('must not run'); },
+      async () => null,
+      true,
+      async () => { throw new Error('OMDb unavailable'); },
+    );
+
+    expect(result.get(1)?.awards).toBeNull();
   });
 });
 
