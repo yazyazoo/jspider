@@ -1,5 +1,5 @@
 import type { TechnicalInfo } from '../domain/models';
-import { parseQuantity, parseTechnicalReport } from '../domain/technical';
+import { parseQuantity, parseTechnicalReport, resolutionFromDimensions } from '../domain/technical';
 
 export function domText(node: Node | null): string {
   if (!node) return '';
@@ -27,15 +27,11 @@ function seconds(value: unknown): number | null {
     : null;
 }
 
-function widthResolution(width: number | null): number | null {
-  return width === null ? null : width >= 3800 ? 2160 : width >= 1900 ? 1080 : width >= 1200 ? 720 : width >= 700 ? 480 : null;
-}
-
 export function parseLfiTechnical(report: string, label: string): TechnicalInfo {
   const hint = /\bVU\b/i.test(label) ? `${label} untouched` : label;
   const base = parseTechnicalReport(report, hint);
   if (!/\[\s*(?:Info sul file|About file|Traccia video|Video track)\s*\]/i.test(report)) {
-    return { ...base, resolution: widthResolution(base.width) ?? base.resolution };
+    return base;
   }
   const sections: Record<'general' | 'video' | 'relevant', Record<string, string>> = {
     general: {}, video: {}, relevant: {},
@@ -67,7 +63,7 @@ export function parseLfiTechnical(report: string, label: string): TechnicalInfo 
   const codec = parseTechnicalReport('', String(video['codec id'] ?? '')).codec || base.codec;
   const fpsMatch = String(video.framerate ?? '').match(/\d+(?:[.,]\d+)?/);
   return {
-    ...base, codec, width, height, resolution: widthResolution(width) ?? base.resolution,
+    ...base, codec, width, height, resolution: resolutionFromDimensions(width, height) ?? base.resolution,
     duration, totalBytes, videoBytes,
     videoBitrate: explicitVideoBitrate
       ?? (videoBytes !== null && duration !== null ? videoBytes * 8 / duration : null),

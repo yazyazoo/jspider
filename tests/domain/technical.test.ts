@@ -34,6 +34,25 @@ const variant = (
 });
 
 describe('parseTechnicalReport', () => {
+  it.each([
+    [640, 360, 360],
+    [864, 480, 480],
+    [776, 592, 576],
+    [960, 544, 540],
+    [1024, 576, 576],
+    [1332, 720, 720],
+    [1792, 802, 1080],
+    [1998, 1080, 1080],
+    [2664, 1440, 1440],
+    [4096, 2160, 2160],
+  ])('classifies %sx%s inside the matching Kodi-style profile as %sp', (width, height, expected) => {
+    const technical = parseTechnicalReport(
+      `General\nVideo\nFormat : HEVC\nWidth : ${width} pixels\nHeight : ${height} pixels`,
+    );
+
+    expect(technical.resolution).toBe(expected);
+  });
+
   it('keeps video bitrate, stream size, total size and duration distinct', () => {
     expect(parseTechnicalReport(report(), 'Film 1080p WEB-DL')).toMatchObject({
       codec: 'HEVC', bitDepth: 10, resolution: 1080, videoBitrate: 5_000_000,

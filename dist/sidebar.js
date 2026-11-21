@@ -852,23 +852,40 @@ function formatBytes(value) {
   const [divisor, unit] = value >= gibibyte ? [gibibyte, "GiB"] : [mebibyte, "MiB"];
   return `${(value / divisor).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${unit}`;
 }
+function formatDuration(value) {
+  if (value === null || !Number.isFinite(value) || value <= 0) return "\u2014";
+  const minutes = Math.floor(value / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours} h ${remainingMinutes} min` : `${minutes} min`;
+}
 function formatTechnicalSummary(technical) {
-  return [
+  const fileDetails = [
     technical.resolution ? `${technical.resolution}p` : "Risoluzione \u2014",
     technical.codec || "Codec \u2014",
     technical.hdr || "",
-    `Video ${formatMetric(technical.videoBitrate, 1e6, "Mb/s")}`,
+    `Durata ${formatDuration(technical.duration)}`,
     `Totale ${formatMetric(technical.overallBitrate, 1e6, "Mb/s")}`,
-    `File ${formatBytes(technical.totalBytes)}`,
+    `File ${formatBytes(technical.totalBytes)}`
+  ].filter(Boolean).join(" \xB7 ");
+  const videoDetails = [
+    `Video ${formatMetric(technical.videoBitrate, 1e6, "Mb/s")}`,
     `Traccia video ${formatBytes(technical.videoBytes)}`
   ].filter(Boolean).join(" \xB7 ");
+  return `${fileDetails}
+${videoDetails}`;
 }
 function renderTechnicalSummary(document2, technical) {
   const paragraph = document2.createElement("p");
   paragraph.className = "version-technical muted small";
-  const strong = document2.createElement("strong");
-  strong.textContent = formatTechnicalSummary(technical);
-  paragraph.append(strong);
+  const lines = formatTechnicalSummary(technical).split("\n");
+  lines.forEach((line, index) => {
+    if (index > 0) paragraph.append(document2.createTextNode("\n"));
+    const strong = document2.createElement("strong");
+    strong.className = "version-technical-line";
+    strong.textContent = line;
+    paragraph.append(strong);
+  });
   return paragraph;
 }
 

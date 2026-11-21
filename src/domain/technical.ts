@@ -1,5 +1,24 @@
 import type { SourceCategory, TechnicalInfo } from './models';
 
+const RESOLUTION_PROFILES = [
+  { maxWidth: 640, maxHeight: 360, resolution: 360 },
+  { maxWidth: 864, maxHeight: 480, resolution: 480 },
+  { maxWidth: 776, maxHeight: 592, resolution: 576 },
+  { maxWidth: 960, maxHeight: 544, resolution: 540 },
+  { maxWidth: 1024, maxHeight: 576, resolution: 576 },
+  { maxWidth: 1332, maxHeight: 720, resolution: 720 },
+  { maxWidth: 1998, maxHeight: 1080, resolution: 1080 },
+  { maxWidth: 2664, maxHeight: 1440, resolution: 1440 },
+  { maxWidth: 4096, maxHeight: 2160, resolution: 2160 },
+] as const;
+
+export function resolutionFromDimensions(width: number | null, height: number | null): number | null {
+  if (width === null || height === null || width <= 0 || height <= 0) return null;
+  return RESOLUTION_PROFILES.find(
+    (profile) => width <= profile.maxWidth && height <= profile.maxHeight,
+  )?.resolution ?? null;
+}
+
 export function parseQuantity(text: unknown, type: 'bytes' | 'bitrate'): number | null {
   const match = String(text ?? '').match(
     /([\d][\d\s.,]*)\s*(kb\/s|Mb\/s|Gb\/s|b\/s|kbps|Mbps|Gbps|bps|GiB|MiB|GB|MB)\b/i,
@@ -70,10 +89,9 @@ export function parseTechnicalReport(report: unknown, label = '', summary = ''):
   const width = Number((video.width ?? '').replace(/\D/g, '')) || null;
   const height = Number((video.height ?? '').replace(/\D/g, '')) || null;
   const namedResolution = Number(label.match(/\b(2160|1080|720|576|480)p\b/i)?.[1]);
-  const resolution = namedResolution || (/\b4K\b/i.test(label) ? 2160
-    : width !== null && width >= 3800 ? 2160
-      : width !== null && width >= 1900 ? 1080
-        : width !== null && width >= 1200 ? 720 : null);
+  const resolution = resolutionFromDimensions(width, height)
+    ?? namedResolution
+    ?? (/\b4K\b/i.test(label) ? 2160 : null);
   const videoBytes = parseQuantity(video['stream size'], 'bytes');
   const duration = parseDuration(video.duration ?? general.duration);
   const explicitVideoBitrate = parseQuantity(video['bit rate'] ?? video['nominal bit rate'], 'bitrate')

@@ -16,16 +16,18 @@ function technical(overrides: Partial<TechnicalInfo> = {}): TechnicalInfo {
 }
 
 describe('version technical summary', () => {
-  it('shows both the complete file size and video-track size', () => {
+  it('shows duration and separates bitrate data from file sizes', () => {
     expect(formatTechnicalSummary(technical())).toBe(
-      '1080p · H264 · Video 32 Mb/s · Totale 37 Mb/s · File 10 GiB · Traccia video 8,5 GiB',
+      '1080p · H264 · Durata 1 h 40 min · Totale 37 Mb/s · File 10 GiB\nVideo 32 Mb/s · Traccia video 8,5 GiB',
     );
   });
 
   it('keeps both size labels visible when the report does not provide them', () => {
-    expect(formatTechnicalSummary(technical({ totalBytes: null, videoBytes: null }))).toContain(
-      'File — · Traccia video —',
-    );
+    const [fileLine, videoLine] = formatTechnicalSummary(
+      technical({ totalBytes: null, videoBytes: null }),
+    ).split('\n');
+    expect(fileLine).toContain('File —');
+    expect(videoLine).toContain('Traccia video —');
   });
 
   it('renders the complete technical summary in bold', () => {
@@ -33,7 +35,11 @@ describe('version technical summary', () => {
 
     expect(node.tagName).toBe('P');
     expect(node.classList.contains('version-technical')).toBe(true);
-    expect(node.querySelector('strong')?.textContent).toBe(formatTechnicalSummary(technical()));
+    expect(node.querySelectorAll('strong')).toHaveLength(2);
+    expect([...node.querySelectorAll('strong')].map((line) => line.textContent)).toEqual([
+      '1080p · H264 · Durata 1 h 40 min · Totale 37 Mb/s · File 10 GiB',
+      'Video 32 Mb/s · Traccia video 8,5 GiB',
+    ]);
     expect(node.textContent).toBe(formatTechnicalSummary(technical()));
   });
 });

@@ -19,6 +19,23 @@
   }
 
   // src/domain/technical.ts
+  var RESOLUTION_PROFILES = [
+    { maxWidth: 640, maxHeight: 360, resolution: 360 },
+    { maxWidth: 864, maxHeight: 480, resolution: 480 },
+    { maxWidth: 776, maxHeight: 592, resolution: 576 },
+    { maxWidth: 960, maxHeight: 544, resolution: 540 },
+    { maxWidth: 1024, maxHeight: 576, resolution: 576 },
+    { maxWidth: 1332, maxHeight: 720, resolution: 720 },
+    { maxWidth: 1998, maxHeight: 1080, resolution: 1080 },
+    { maxWidth: 2664, maxHeight: 1440, resolution: 1440 },
+    { maxWidth: 4096, maxHeight: 2160, resolution: 2160 }
+  ];
+  function resolutionFromDimensions(width, height) {
+    if (width === null || height === null || width <= 0 || height <= 0) return null;
+    return RESOLUTION_PROFILES.find(
+      (profile) => width <= profile.maxWidth && height <= profile.maxHeight
+    )?.resolution ?? null;
+  }
   function parseQuantity(text, type) {
     const match = String(text ?? "").match(
       /([\d][\d\s.,]*)\s*(kb\/s|Mb\/s|Gb\/s|b\/s|kbps|Mbps|Gbps|bps|GiB|MiB|GB|MB)\b/i
@@ -94,7 +111,7 @@
     const width = Number((video.width ?? "").replace(/\D/g, "")) || null;
     const height = Number((video.height ?? "").replace(/\D/g, "")) || null;
     const namedResolution = Number(label.match(/\b(2160|1080|720|576|480)p\b/i)?.[1]);
-    const resolution = namedResolution || (/\b4K\b/i.test(label) ? 2160 : width !== null && width >= 3800 ? 2160 : width !== null && width >= 1900 ? 1080 : width !== null && width >= 1200 ? 720 : null);
+    const resolution = resolutionFromDimensions(width, height) ?? namedResolution ?? (/\b4K\b/i.test(label) ? 2160 : null);
     const videoBytes = parseQuantity(video["stream size"], "bytes");
     const duration = parseDuration(video.duration ?? general.duration);
     const explicitVideoBitrate = parseQuantity(video["bit rate"] ?? video["nominal bit rate"], "bitrate") ?? parseQuantity(summary, "bitrate");
@@ -154,14 +171,11 @@ ${value}
     if (explicit?.[1]) return Number(explicit[1].replace(",", ".")) || null;
     return clock?.[1] && clock[2] && clock[3] ? Number(clock[1]) * 3600 + Number(clock[2]) * 60 + Number(clock[3].replace(",", ".")) : null;
   }
-  function widthResolution(width) {
-    return width === null ? null : width >= 3800 ? 2160 : width >= 1900 ? 1080 : width >= 1200 ? 720 : width >= 700 ? 480 : null;
-  }
   function parseLfiTechnical(report, label) {
     const hint = /\bVU\b/i.test(label) ? `${label} untouched` : label;
     const base = parseTechnicalReport(report, hint);
     if (!/\[\s*(?:Info sul file|About file|Traccia video|Video track)\s*\]/i.test(report)) {
-      return { ...base, resolution: widthResolution(base.width) ?? base.resolution };
+      return base;
     }
     const sections = {
       general: {},
@@ -196,7 +210,7 @@ ${value}
       codec,
       width,
       height,
-      resolution: widthResolution(width) ?? base.resolution,
+      resolution: resolutionFromDimensions(width, height) ?? base.resolution,
       duration,
       totalBytes,
       videoBytes,

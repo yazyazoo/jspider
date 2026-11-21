@@ -20,7 +20,7 @@ Dimensione: 9,873,040,735 bytes
 Durata: 01:30:59 (5459.38 s)
 [ Traccia video ]
 Codec ID: V_MPEG4/ISO/AVC
-Risoluzione: 1920 x 800
+Risoluzione: 1792 x 802
 Dimensione stream: 8,123,956,183 bytes
 Bitrate (bs): 11904.867977 kbps
 Framerate: 24 fps`;
@@ -54,7 +54,7 @@ describe('La Foresta adapter', () => {
       collectors: ['https://lficrypt.org/C538F022EC.html'],
       technical: {
         resolution: 1080, codec: 'H264', totalBytes: 9_873_040_735,
-        videoBytes: 8_123_956_183, duration: 5459.38, width: 1920, height: 800,
+        videoBytes: 8_123_956_183, duration: 5459.38, width: 1792, height: 802,
       },
     });
     expect(snapshot.variants[1]).toMatchObject({ password: '', unsupportedCollectors: ['https://filecrypt.cc/Container/ABC.html'] });

@@ -16,23 +16,40 @@ function formatBytes(value: number | null): string {
   return `${(value / divisor).toLocaleString('it-IT', { maximumFractionDigits: 2 })} ${unit}`;
 }
 
+function formatDuration(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value <= 0) return '—';
+  const minutes = Math.floor(value / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours} h ${remainingMinutes} min` : `${minutes} min`;
+}
+
 export function formatTechnicalSummary(technical: TechnicalInfo): string {
-  return [
+  const fileDetails = [
     technical.resolution ? `${technical.resolution}p` : 'Risoluzione —',
     technical.codec || 'Codec —',
     technical.hdr || '',
-    `Video ${formatMetric(technical.videoBitrate, 1e6, 'Mb/s')}`,
+    `Durata ${formatDuration(technical.duration)}`,
     `Totale ${formatMetric(technical.overallBitrate, 1e6, 'Mb/s')}`,
     `File ${formatBytes(technical.totalBytes)}`,
+  ].filter(Boolean).join(' · ');
+  const videoDetails = [
+    `Video ${formatMetric(technical.videoBitrate, 1e6, 'Mb/s')}`,
     `Traccia video ${formatBytes(technical.videoBytes)}`,
   ].filter(Boolean).join(' · ');
+  return `${fileDetails}\n${videoDetails}`;
 }
 
 export function renderTechnicalSummary(document: Document, technical: TechnicalInfo): HTMLParagraphElement {
   const paragraph = document.createElement('p');
   paragraph.className = 'version-technical muted small';
-  const strong = document.createElement('strong');
-  strong.textContent = formatTechnicalSummary(technical);
-  paragraph.append(strong);
+  const lines = formatTechnicalSummary(technical).split('\n');
+  lines.forEach((line, index) => {
+    if (index > 0) paragraph.append(document.createTextNode('\n'));
+    const strong = document.createElement('strong');
+    strong.className = 'version-technical-line';
+    strong.textContent = line;
+    paragraph.append(strong);
+  });
   return paragraph;
 }
