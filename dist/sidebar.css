@@ -95,9 +95,12 @@ legend { padding: 0; font-size: 13px; font-weight: 600; margin-top: 12px; }
 .version-card p { margin-left: 27px; }
 .version-technical { font-weight: 700; }
 .version-technical-line { display: block; }
+.version-ambiguity { color: #e0c78c; }
 .version-reason { color: #b1dcca; }
 #limit { max-width: 160px; }
 #versions { margin-top: 12px; }
+.unlock-versions-prompt { margin-bottom: 12px; }
+.unlock-versions { width: 100%; }
 #recommendation-notes { color: #e0c78c; }
 #thank-selected { width: 100%; }
 

@@ -9,6 +9,7 @@ import {
   initializeOverlayWidthControl,
   LatestResultGate,
   loadCandidateEnrichments,
+  renderUnlockPrompt,
   runSidebarStartup,
 } from '../../src/sidebar/controller';
 import { initialCreateModeState, lockCreateMode, selectCreateMode } from '../../src/domain/create-mode';
@@ -94,6 +95,21 @@ describe('exclusive phase 3 mode', () => {
       quickDisabled: quickChoice.disabled,
       taskflowDisabled: taskflowChoice.disabled,
     }).toEqual({ quickHidden: true, taskflowHidden: false, quickDisabled: true, taskflowDisabled: true });
+  });
+});
+
+describe('Foresta locked container', () => {
+  it('renders only the explicit unlock action and forwards its click', () => {
+    const container = document.createElement('div');
+    container.append(document.createElement('article'));
+    let clicks = 0;
+
+    const button = renderUnlockPrompt(document, container, () => { clicks += 1; });
+
+    expect(container.querySelector('article')).toBeNull();
+    expect(button.textContent).toBe('Ringrazia e carica le versioni');
+    button.click();
+    expect(clicks).toBe(1);
   });
 });
 

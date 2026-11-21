@@ -341,6 +341,45 @@ function applyThankReplacements(selected, replacements, available) {
 function shouldAutoSearchTmdb(configured, mediaKind) {
   return configured && (mediaKind === "movie" || mediaKind === "tv");
 }
+var BITRATE_LIMIT_STORAGE_KEY = "jspider.bitrateLimitMbps";
+function normalizeBitrateLimit(value) {
+  if (value === "") return "";
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const text = String(value).trim();
+  const number = Number(text);
+  return text && Number.isFinite(number) && number >= 0 ? text : "";
+}
+function createBitrateLimitState(storage) {
+  let pendingWrite = Promise.resolve();
+  return {
+    async load() {
+      await pendingWrite;
+      const stored = await storage.get(BITRATE_LIMIT_STORAGE_KEY);
+      return normalizeBitrateLimit(stored[BITRATE_LIMIT_STORAGE_KEY]);
+    },
+    save(value) {
+      const normalized = normalizeBitrateLimit(value);
+      pendingWrite = pendingWrite.then(() => storage.set({
+        [BITRATE_LIMIT_STORAGE_KEY]: normalized
+      }));
+      return pendingWrite;
+    }
+  };
+}
+function resolveThanksPresentation(mode) {
+  return {
+    showUnlock: mode === "unlock-container",
+    showSelection: mode !== "unlock-container",
+    selectionLabel: mode === "validate-selection" ? "Conferma le versioni selezionate" : "Ringrazia le versioni selezionate"
+  };
+}
+function shouldSubmitSelectionThanks(mode) {
+  return mode !== "validate-selection";
+}
+function validateUnlockedSelection(variants) {
+  if (!variants.length) return "Seleziona almeno una versione.";
+  return variants.some((variant) => variant.locked || !variant.linksLoaded || !variant.links.length) ? "Una o pi\xF9 versioni selezionate non hanno link disponibili." : null;
+}
 
 // src/sidebar/controller.ts
 function directImdbId(value) {
@@ -436,6 +475,19 @@ var LatestResultGate = class {
 function clearTmdbView(view) {
   view.results.replaceChildren();
   view.validation.textContent = "";
+}
+function renderUnlockPrompt(document2, container, onUnlock) {
+  container.replaceChildren();
+  const prompt = document2.createElement("div");
+  prompt.className = "unlock-versions-prompt";
+  const button = document2.createElement("button");
+  button.type = "button";
+  button.className = "unlock-versions";
+  button.textContent = "Ringrazia e carica le versioni";
+  button.addEventListener("click", onUnlock);
+  prompt.append(button);
+  container.append(prompt);
+  return button;
 }
 async function initializeOverlayWidthControl(pageUrl, view, getStatus) {
   let overlay = false;
@@ -860,19 +912,22 @@ function formatDuration(value) {
   return hours > 0 ? `${hours} h ${remainingMinutes} min` : `${minutes} min`;
 }
 function formatTechnicalSummary(technical) {
-  const fileDetails = [
+  const metadata2 = [
     technical.resolution ? `${technical.resolution}p` : "Risoluzione \u2014",
     technical.codec || "Codec \u2014",
     technical.hdr || "",
-    `Durata ${formatDuration(technical.duration)}`,
-    `Totale ${formatMetric(technical.overallBitrate, 1e6, "Mb/s")}`,
+    `Durata ${formatDuration(technical.duration)}`
+  ].filter(Boolean).join(" \xB7 ");
+  const fileDetails = [
+    `Totale File: ${formatMetric(technical.overallBitrate, 1e6, "Mb/s")}`,
     `File ${formatBytes(technical.totalBytes)}`
   ].filter(Boolean).join(" \xB7 ");
   const videoDetails = [
-    `Video ${formatMetric(technical.videoBitrate, 1e6, "Mb/s")}`,
+    `Traccia Video: ${formatMetric(technical.videoBitrate, 1e6, "Mb/s")}`,
     `Traccia video ${formatBytes(technical.videoBytes)}`
   ].filter(Boolean).join(" \xB7 ");
-  return `${fileDetails}
+  return `${metadata2} \xB7
+${fileDetails}
 ${videoDetails}`;
 }
 function renderTechnicalSummary(document2, technical) {
@@ -887,6 +942,19 @@ function renderTechnicalSummary(document2, technical) {
     paragraph.append(strong);
   });
   return paragraph;
+}
+function declaredResolution(label) {
+  const named = label.match(/\b(2160|1440|1080|720|576|540|480|360)p\b/i)?.[1];
+  if (named) return { value: Number(named), text: `${named}p` };
+  return /\b4K\b/i.test(label) ? { value: 2160, text: "4K" } : null;
+}
+function renderResolutionAmbiguity(document2, label, technical) {
+  const declared = declaredResolution(label);
+  if (!declared || technical.resolution === null || declared.value === technical.resolution) return null;
+  const warning = document2.createElement("p");
+  warning.className = "version-ambiguity small";
+  warning.textContent = `${technical.resolution}p da MediaInfo \xB7 articolo etichettato ${declared.text}.`;
+  return warning;
 }
 
 // src/sidebar/full-webui.ts
@@ -931,6 +999,11 @@ function initializeFullWebUiToggle(view, dependencies) {
 }
 
 // src/sidebar/preset-cleanup.ts
+var DEFAULT_QUICK_WORKFLOW_PRESET = "default-with-cleanup";
+function resolvePresetSelection(previousCode, presets) {
+  if (previousCode && presets.some((preset) => preset.code === previousCode)) return previousCode;
+  return presets.some((preset) => preset.code === DEFAULT_QUICK_WORKFLOW_PRESET) ? DEFAULT_QUICK_WORKFLOW_PRESET : "";
+}
 function resolvePresetCleanup(presetCode, presets) {
   if (!presetCode) return true;
   const preset = presets.find((candidate) => candidate.code === presetCode);
@@ -1250,6 +1323,10 @@ var manualPassword = null;
 var tmdbResultGate = new LatestResultGate();
 var embyResultGate = new LatestResultGate();
 var ratingsResultGate = new LatestResultGate();
+var bitrateLimitState = createBitrateLimitState({
+  get: (key) => chrome.storage.local.get(key),
+  set: (items) => chrome.storage.local.set(items)
+});
 var embyPanel = new EmbyPanelController(
   element("emby-status"),
   (seriesId, seasonId) => background("emby.season", { seriesId, seasonId })
@@ -1376,6 +1453,29 @@ function recommendation() {
 function renderVersions() {
   const container = element("versions");
   container.replaceChildren();
+  const thanksPresentation = resolveThanksPresentation(snapshot?.thanksMode);
+  const selectionThanksButton = element("thank-selected");
+  selectionThanksButton.textContent = thanksPresentation.selectionLabel;
+  const selectionThanksContainer = selectionThanksButton.closest(".button-info");
+  if (selectionThanksContainer) selectionThanksContainer.hidden = !thanksPresentation.showSelection;
+  if (thanksPresentation.showUnlock) {
+    selectedKeys = [];
+    explicitlyAdjusted = false;
+    const unlockButton = renderUnlockPrompt(document, container, () => {
+      unlockButton.disabled = true;
+      void unlockVersionContainer().catch((reason) => {
+        status(reason instanceof Error ? reason.message : "Ringraziamento non riuscito.", true);
+        if (unlockButton.isConnected) unlockButton.disabled = false;
+      });
+    });
+    element("recommendation-notes").textContent = "";
+    selectionThanksButton.disabled = true;
+    element("filestore-count").textContent = "";
+    element("terabytez-count").textContent = "";
+    syncPasswordField();
+    renderCreateState();
+    return;
+  }
   const proposal = recommendation();
   selectedKeys = reconcileSelection(
     selectedKeys,
@@ -1401,21 +1501,38 @@ function renderVersions() {
     title.textContent = variant.packageName;
     label.append(checkbox, title);
     const technical = renderTechnicalSummary(document, variant.technical);
+    const ambiguity = renderResolutionAmbiguity(document, variant.packageName, variant.technical);
     const reason = document.createElement("p");
     reason.className = "version-reason small";
     reason.textContent = proposal.reasons[variant.key] ?? "Scelta manuale.";
     if (variant.locked) reason.textContent += " Ringrazia l\u2019articolo per sbloccare i link.";
     if (variant.linkError) reason.textContent += ` ${variant.linkError}`;
-    card.append(label, technical, reason);
+    card.append(label, technical);
+    if (ambiguity) card.append(ambiguity);
+    card.append(reason);
     container.append(card);
   }
   element("recommendation-notes").textContent = proposal.notes.join(" ");
-  input("thank-selected").disabled = !snapshot?.supportsThanks || !selectedKeys.length;
+  selectionThanksButton.disabled = !snapshot?.supportsThanks || !selectedKeys.length;
   const links = selectedVariants().flatMap((variant) => variant.links);
   element("filestore-count").textContent = `\xB7 ${links.filter((link) => new URL(link).hostname === "filestore.me").length}`;
   element("terabytez-count").textContent = `\xB7 ${links.filter((link) => new URL(link).hostname === "terabytez.org").length}`;
   syncPasswordField();
   renderCreateState();
+}
+async function unlockVersionContainer() {
+  const placeholder = snapshot?.variants.find((variant) => variant.locked);
+  if (!placeholder) throw new Error("Contenitore delle versioni non disponibile. Aggiorna la pagina.");
+  status("Ringraziamento e caricamento delle versioni\u2026");
+  const result = await page("thank", { variantKeys: [placeholder.key] });
+  if (result.thanks.failed.length) {
+    throw new Error(result.thanks.failed.map((failure) => failure.error).join("; "));
+  }
+  snapshot = result.context;
+  selectedKeys = [];
+  explicitlyAdjusted = false;
+  renderVersions();
+  status(`${snapshot.variants.length} versioni caricate e analizzate.`);
 }
 function renderCandidates() {
   const results = element("results");
@@ -1519,7 +1636,7 @@ function renderCatalog() {
   const previous = preset.value;
   preset.replaceChildren(new Option("Seleziona un preset TaskFlow", ""));
   for (const item of catalog?.presets ?? []) preset.append(new Option(`${item.name} (${item.code})`, item.code));
-  if ([...preset.options].some((option) => option.value === previous)) preset.value = previous;
+  preset.value = resolvePresetSelection(previous, catalog?.presets ?? []);
   const selectedPreset = catalog?.presets.find((item) => item.code === preset.value);
   input("cleanup").checked = resolvePresetCleanup(preset.value, catalog?.presets ?? []);
   element("preset-summary").textContent = selectedPreset ? `Ereditato dal server: ${selectedPreset.tasks.join(" \u2192 ")}` : "Seleziona un preset TaskFlow per usare Quick Workflow.";
@@ -1647,6 +1764,9 @@ select("profile").addEventListener("change", () => {
 input("limit").addEventListener("input", () => {
   explicitlyAdjusted = false;
   renderVersions();
+  void bitrateLimitState.save(input("limit").value).catch((reason) => {
+    console.warn("JSpider: limite bitrate non salvato.", reason);
+  });
 });
 for (const id of ["filestore", "terabytez", "workflow-name"]) input(id).addEventListener("input", renderCreateState);
 input("autodownload").addEventListener("change", renderCreateState);
@@ -1699,6 +1819,12 @@ element("imdb-search").addEventListener("click", () => {
 });
 element("thank-selected").addEventListener("click", () => {
   void (async () => {
+    if (!shouldSubmitSelectionThanks(snapshot?.thanksMode)) {
+      const validationError = validateUnlockedSelection(selectedVariants());
+      if (validationError) throw new Error(validationError);
+      status(`${selectedKeys.length} versioni selezionate confermate.`);
+      return;
+    }
     status("Ringraziamento e rilettura dei link\u2026");
     const result = await page("thank", { variantKeys: selectedKeys });
     snapshot = result.context;
@@ -1797,6 +1923,7 @@ element("load-packages").addEventListener("click", () => {
   })().catch((reason) => reportSubmissionError(reason));
 });
 void (async () => {
+  input("limit").value = await bitrateLimitState.load().catch(() => "");
   await runSidebarStartup({
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,

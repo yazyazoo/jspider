@@ -82,11 +82,42 @@ describe('searchTmdb', () => {
     const calls: Array<[string, Record<string, unknown>]> = [];
     await searchTmdb({
       title: 'Serie', year: '2024', mediaKind: 'tv', imdbId: 'tt1234567', mode: 'title',
-    }, async (path, params) => { calls.push([path, params]); return { results: [] }; });
+    }, async (path, params) => {
+      calls.push([path, params]);
+      return { results: [{ id: 8, name: 'Serie', first_air_date: '2024-01-01', overview: 'Trama' }] };
+    });
     expect(calls).toEqual([['/search/tv', {
       query: 'Serie', language: 'it-IT', page: 1, include_adult: false,
       first_air_date_year: '2024',
     }]]);
+  });
+
+  it('retries a TV title search without the season year when the strict search is empty', async () => {
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const result = await searchTmdb({
+      title: 'MobLand', year: '2026', mediaKind: 'tv', imdbId: '', mode: 'title',
+    }, async (path, params) => {
+      calls.push([path, params]);
+      if ('first_air_date_year' in params) return { results: [] };
+      return { results: [{
+        id: 247718, name: 'MobLand', first_air_date: '2025-03-30',
+        overview: 'Due famiglie criminali si scontrano.', poster_path: '/mobland.jpg',
+      }] };
+    });
+
+    expect(calls).toEqual([
+      ['/search/tv', {
+        query: 'MobLand', language: 'it-IT', page: 1, include_adult: false,
+        first_air_date_year: '2026',
+      }],
+      ['/search/tv', {
+        query: 'MobLand', language: 'it-IT', page: 1, include_adult: false,
+      }],
+    ]);
+    expect(result).toMatchObject({
+      method: 'title',
+      candidates: [{ id: 247718, mediaKind: 'tv', title: 'MobLand', year: '2025' }],
+    });
   });
 });
 

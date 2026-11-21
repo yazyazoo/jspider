@@ -47,6 +47,7 @@ describe('La Foresta adapter', () => {
     expect(snapshot).toMatchObject({
       siteId: 'laforestaincantata', title: 'Bone Keeper - Discesa negli inferi',
       year: '2026', mediaKind: 'movie', supportsThanks: true,
+      thanksMode: 'validate-selection',
     });
     expect(snapshot.variants).toHaveLength(2);
     expect(snapshot.variants[0]).toMatchObject({
@@ -96,13 +97,28 @@ describe('La Foresta adapter', () => {
       return { ok: true, status: 200, text: async () => posted ? unlocked : lockedDocument.documentElement.outerHTML };
     }));
     const oldKey = laForestaAdapter.readPage(lockedDocument, rootUrl).variants[0]!.key;
+    expect(laForestaAdapter.readPage(lockedDocument, rootUrl).thanksMode).toBe('unlock-container');
 
     const result = await laForestaAdapter.thankSelected?.(lockedDocument, rootUrl, [oldKey]);
     expect(result?.thanks.thanked).toEqual([oldKey]);
     expect(result?.thanks.failed).toEqual([]);
     expect(result?.thanks.replacements?.[oldKey]).toHaveLength(2);
     expect(result?.context.variants.map((variant) => variant.password)).toEqual(['FIRST', 'SECOND']);
+    expect(result?.context.thanksMode).toBe('validate-selection');
     vi.unstubAllGlobals();
+  });
+
+  it('keeps the normal selection thanks flow for a locked single-version article', () => {
+    const singleDocument = new DOMParser().parseFromString(
+      '<meta property="og:title" content="Bone Keeper - Discesa negli inferi (2026) WebDL 1080p"><div id="full-story"><div id="thx"><a onclick="tanksForNews(503997)">Ringrazia</a></div></div>',
+      'text/html',
+    );
+
+    const snapshot = laForestaAdapter.readPage(singleDocument, rootUrl);
+
+    expect(snapshot.thanksMode).toBe('selection');
+    expect(snapshot.variants).toHaveLength(1);
+    expect(snapshot.variants[0]?.locked).toBe(true);
   });
 });
 

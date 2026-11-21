@@ -22,9 +22,17 @@ import {
   initializeOverlayWidthControl,
   LatestResultGate,
   loadCandidateEnrichments,
+  renderUnlockPrompt,
   runSidebarStartup,
 } from './controller';
-import { applyThankReplacements, reconcileSelection } from './state';
+import {
+  applyThankReplacements,
+  createBitrateLimitState,
+  reconcileSelection,
+  resolveThanksPresentation,
+  shouldSubmitSelectionThanks,
+  validateUnlockedSelection,
+} from './state';
 import {
   openTaskFlowCreate,
   type TaskFlowCreateRuntime,
@@ -41,9 +49,13 @@ import {
   type SettingsFields,
 } from './settings-form';
 import type { SettingsSummary } from '../background/settings';
-import { renderTechnicalSummary } from './technical-summary';
+import { renderResolutionAmbiguity, renderTechnicalSummary } from './technical-summary';
 import { initializeFullWebUiToggle, type FullWebUiRuntime } from './full-webui';
-import { resolvePresetCleanup, type CleanupPreset } from './preset-cleanup';
+import {
+  resolvePresetCleanup,
+  resolvePresetSelection,
+  type CleanupPreset,
+} from './preset-cleanup';
 import type { EmbyLookupInput, EmbyPresenceResult } from '../domain/emby';
 import { EmbyPanelController, type EmbySeasonFilesResult } from './emby-status';
 import type { MediaRatings } from '../domain/media-ratings';
@@ -62,6 +74,15 @@ import {
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
 interface Catalog { presets: WorkflowPreset[] }
+interface ThanksResponse {
+  context: PageSnapshot;
+  thanks: {
+    thanked: string[];
+    already: string[];
+    failed: Array<{ error: string }>;
+    replacements?: Record<string, string[]>;
+  };
+}
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = (id: string) => element<HTMLInputElement>(id);
 const select = (id: string) => element<HTMLSelectElement>(id);
@@ -78,6 +99,10 @@ let manualPassword: string | null = null;
 const tmdbResultGate = new LatestResultGate();
 const embyResultGate = new LatestResultGate();
 const ratingsResultGate = new LatestResultGate();
+const bitrateLimitState = createBitrateLimitState({
+  get: (key) => chrome.storage.local.get(key),
+  set: (items) => chrome.storage.local.set(items),
+});
 const embyPanel = new EmbyPanelController(
   element('emby-status'),
   (seriesId, seasonId) => background<EmbySeasonFilesResult>('emby.season', { seriesId, seasonId }),
@@ -209,6 +234,29 @@ function recommendation() {
 function renderVersions(): void {
   const container = element<HTMLDivElement>('versions');
   container.replaceChildren();
+  const thanksPresentation = resolveThanksPresentation(snapshot?.thanksMode);
+  const selectionThanksButton = element<HTMLButtonElement>('thank-selected');
+  selectionThanksButton.textContent = thanksPresentation.selectionLabel;
+  const selectionThanksContainer = selectionThanksButton.closest<HTMLElement>('.button-info');
+  if (selectionThanksContainer) selectionThanksContainer.hidden = !thanksPresentation.showSelection;
+  if (thanksPresentation.showUnlock) {
+    selectedKeys = [];
+    explicitlyAdjusted = false;
+    const unlockButton = renderUnlockPrompt(document, container, () => {
+      unlockButton.disabled = true;
+      void unlockVersionContainer().catch((reason) => {
+        status(reason instanceof Error ? reason.message : 'Ringraziamento non riuscito.', true);
+        if (unlockButton.isConnected) unlockButton.disabled = false;
+      });
+    });
+    element('recommendation-notes').textContent = '';
+    selectionThanksButton.disabled = true;
+    element('filestore-count').textContent = '';
+    element('terabytez-count').textContent = '';
+    syncPasswordField();
+    renderCreateState();
+    return;
+  }
   const proposal = recommendation();
   selectedKeys = reconcileSelection(
     selectedKeys, explicitlyAdjusted, snapshot?.variants.map((variant) => variant.key) ?? [], proposal.keys,
@@ -233,21 +281,39 @@ function renderVersions(): void {
     title.textContent = variant.packageName;
     label.append(checkbox, title);
     const technical = renderTechnicalSummary(document, variant.technical);
+    const ambiguity = renderResolutionAmbiguity(document, variant.packageName, variant.technical);
     const reason = document.createElement('p');
     reason.className = 'version-reason small';
     reason.textContent = proposal.reasons[variant.key] ?? 'Scelta manuale.';
     if (variant.locked) reason.textContent += ' Ringrazia l’articolo per sbloccare i link.';
     if (variant.linkError) reason.textContent += ` ${variant.linkError}`;
-    card.append(label, technical, reason);
+    card.append(label, technical);
+    if (ambiguity) card.append(ambiguity);
+    card.append(reason);
     container.append(card);
   }
   element('recommendation-notes').textContent = proposal.notes.join(' ');
-  input('thank-selected').disabled = !snapshot?.supportsThanks || !selectedKeys.length;
+  selectionThanksButton.disabled = !snapshot?.supportsThanks || !selectedKeys.length;
   const links = selectedVariants().flatMap((variant) => variant.links);
   element('filestore-count').textContent = `· ${links.filter((link) => new URL(link).hostname === 'filestore.me').length}`;
   element('terabytez-count').textContent = `· ${links.filter((link) => new URL(link).hostname === 'terabytez.org').length}`;
   syncPasswordField();
   renderCreateState();
+}
+
+async function unlockVersionContainer(): Promise<void> {
+  const placeholder = snapshot?.variants.find((variant) => variant.locked);
+  if (!placeholder) throw new Error('Contenitore delle versioni non disponibile. Aggiorna la pagina.');
+  status('Ringraziamento e caricamento delle versioni…');
+  const result = await page<ThanksResponse>('thank', { variantKeys: [placeholder.key] });
+  if (result.thanks.failed.length) {
+    throw new Error(result.thanks.failed.map((failure) => failure.error).join('; '));
+  }
+  snapshot = result.context;
+  selectedKeys = [];
+  explicitlyAdjusted = false;
+  renderVersions();
+  status(`${snapshot.variants.length} versioni caricate e analizzate.`);
 }
 
 function renderCandidates(): void {
@@ -358,7 +424,7 @@ function renderCatalog(): void {
   const previous = preset.value;
   preset.replaceChildren(new Option('Seleziona un preset TaskFlow', ''));
   for (const item of catalog?.presets ?? []) preset.append(new Option(`${item.name} (${item.code})`, item.code));
-  if ([...preset.options].some((option) => option.value === previous)) preset.value = previous;
+  preset.value = resolvePresetSelection(previous, catalog?.presets ?? []);
   const selectedPreset = catalog?.presets.find((item) => item.code === preset.value);
   input('cleanup').checked = resolvePresetCleanup(preset.value, catalog?.presets ?? []);
   element('preset-summary').textContent = selectedPreset
@@ -489,7 +555,13 @@ async function initializeOverlayWidth(): Promise<void> {
 
 element('refresh').addEventListener('click', () => void readSnapshot('refresh').catch((reason) => status(reason.message, true)));
 select('profile').addEventListener('change', () => { explicitlyAdjusted = false; renderVersions(); });
-input('limit').addEventListener('input', () => { explicitlyAdjusted = false; renderVersions(); });
+input('limit').addEventListener('input', () => {
+  explicitlyAdjusted = false;
+  renderVersions();
+  void bitrateLimitState.save(input('limit').value).catch((reason) => {
+    console.warn('JSpider: limite bitrate non salvato.', reason);
+  });
+});
 for (const id of ['filestore', 'terabytez', 'workflow-name']) input(id).addEventListener('input', renderCreateState);
 input('autodownload').addEventListener('change', renderCreateState);
 select('workflow-preset').addEventListener('change', renderCatalog);
@@ -541,8 +613,14 @@ element('imdb-search').addEventListener('click', () => {
 });
 element('thank-selected').addEventListener('click', () => {
   void (async () => {
+    if (!shouldSubmitSelectionThanks(snapshot?.thanksMode)) {
+      const validationError = validateUnlockedSelection(selectedVariants());
+      if (validationError) throw new Error(validationError);
+      status(`${selectedKeys.length} versioni selezionate confermate.`);
+      return;
+    }
     status('Ringraziamento e rilettura dei link…');
-    const result = await page<{ context: PageSnapshot; thanks: { thanked: string[]; already: string[]; failed: Array<{ error: string }>; replacements?: Record<string, string[]> } }>('thank', { variantKeys: selectedKeys });
+    const result = await page<ThanksResponse>('thank', { variantKeys: selectedKeys });
     snapshot = result.context;
     selectedKeys = applyThankReplacements(selectedKeys, result.thanks.replacements ?? {}, snapshot.variants.map((variant) => variant.key));
     explicitlyAdjusted = true; renderVersions();
@@ -657,6 +735,7 @@ element('load-packages').addEventListener('click', () => {
 });
 
 void (async () => {
+  input('limit').value = await bitrateLimitState.load().catch(() => '');
   await runSidebarStartup({
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,

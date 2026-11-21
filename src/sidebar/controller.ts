@@ -151,6 +151,24 @@ export function clearTmdbView(view: {
   view.validation.textContent = '';
 }
 
+export function renderUnlockPrompt(
+  document: Document,
+  container: HTMLElement,
+  onUnlock: () => void,
+): HTMLButtonElement {
+  container.replaceChildren();
+  const prompt = document.createElement('div');
+  prompt.className = 'unlock-versions-prompt';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'unlock-versions';
+  button.textContent = 'Ringrazia e carica le versioni';
+  button.addEventListener('click', onUnlock);
+  prompt.append(button);
+  container.append(prompt);
+  return button;
+}
+
 export async function initializeOverlayWidthControl(
   pageUrl: string,
   view: { container: HTMLElement; select: HTMLSelectElement },

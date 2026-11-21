@@ -114,7 +114,12 @@ export async function searchTmdb(
     query: title, language: 'it-IT', page: 1, include_adult: false,
   };
   if (year) params[input.mediaKind === 'tv' ? 'first_air_date_year' : 'year'] = year;
-  const found = await request(`/search/${input.mediaKind}`, params);
+  let found = await request(`/search/${input.mediaKind}`, params);
+  if (input.mediaKind === 'tv' && year && arrayField(found, 'results').length === 0) {
+    const relaxedParams = { ...params };
+    delete relaxedParams.first_air_date_year;
+    found = await request('/search/tv', relaxedParams);
+  }
   const candidates = arrayField(found, 'results')
     .map((item) => candidate(item, input.mediaKind))
     .filter((item): item is TmdbCandidate => item !== null)

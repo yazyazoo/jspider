@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePresetCleanup } from '../../src/sidebar/preset-cleanup';
+import { resolvePresetCleanup, resolvePresetSelection } from '../../src/sidebar/preset-cleanup';
 
 const presets = [
   { code: 'cleanup', defaults: { cleanup_on_success: true } },
@@ -19,5 +19,18 @@ describe('resolvePresetCleanup', () => {
 
   it('disables Cleanup when the selected preset does not declare it', () => {
     expect(resolvePresetCleanup('legacy', presets)).toBe(false);
+  });
+});
+
+describe('resolvePresetSelection', () => {
+  it('selects Default w/cleanup initially and preserves another valid selection', () => {
+    const available = [
+      ...presets,
+      { code: 'default-with-cleanup', defaults: { cleanup_on_success: true } },
+    ];
+
+    expect(resolvePresetSelection('', available)).toBe('default-with-cleanup');
+    expect(resolvePresetSelection('keep-files', available)).toBe('keep-files');
+    expect(resolvePresetSelection('', presets)).toBe('');
   });
 });

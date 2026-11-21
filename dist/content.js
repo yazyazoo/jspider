@@ -297,6 +297,7 @@ ${value}
     const info = identity(raw, domText(story));
     const cards = [...story.querySelectorAll("[data-film-version-card]")];
     const articleLocked = Boolean(story.querySelector('#thx [onclick*="tanksForNews"]'));
+    const allCodings = /\btutte\s+le\s+codifiche(?:\s+disponibili)?\b/i.test(raw);
     const outsideCards = story.cloneNode(true);
     outsideCards.querySelectorAll("[data-film-version-card]").forEach((element) => element.remove());
     const commonPassword = password(outsideCards);
@@ -353,6 +354,7 @@ ${value}
       mediaKind: info.mediaKind,
       imdbId,
       supportsThanks: true,
+      thanksMode: allCodings ? articleLocked && cards.length === 0 ? "unlock-container" : "validate-selection" : "selection",
       thanksHint: "Il ringraziamento pu\xF2 costare 1 doblone per articolo. Pi\xF9 versioni dello stesso articolo vengono sbloccate insieme.",
       variants,
       warnings: []

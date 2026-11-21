@@ -3,6 +3,7 @@ import type { ArchiveHost } from './archive-links';
 export type MediaKind = 'movie' | 'tv';
 export type SourceCategory = 'source' | 'untouched' | 'encode' | 'unknown';
 export type RecommendationProfile = '4k1080' | '1080dual' | 'manual';
+export type ThanksMode = 'selection' | 'unlock-container' | 'validate-selection';
 
 export interface TechnicalInfo {
   codec: string;
@@ -50,6 +51,7 @@ export interface PageSnapshot {
   mediaKind: MediaKind | '';
   variants: ReleaseVariant[];
   supportsThanks: boolean;
+  thanksMode?: ThanksMode;
   warnings?: string[];
   thanksHint?: string;
 }

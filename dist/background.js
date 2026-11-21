@@ -282,7 +282,12 @@ async function searchTmdb(input, request2) {
     include_adult: false
   };
   if (year) params[input.mediaKind === "tv" ? "first_air_date_year" : "year"] = year;
-  const found = await request2(`/search/${input.mediaKind}`, params);
+  let found = await request2(`/search/${input.mediaKind}`, params);
+  if (input.mediaKind === "tv" && year && arrayField(found, "results").length === 0) {
+    const relaxedParams = { ...params };
+    delete relaxedParams.first_air_date_year;
+    found = await request2("/search/tv", relaxedParams);
+  }
   const candidates2 = arrayField(found, "results").map((item2) => candidate(item2, input.mediaKind)).filter((item2) => item2 !== null).slice(0, 10).map((item2) => ({ ...item2, imdbUrl: imdbSearchUrl(item2, year) }));
   return { method: "title", candidates: await fillMissingEnglishOverviews(candidates2, request2) };
 }

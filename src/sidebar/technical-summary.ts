@@ -25,19 +25,21 @@ function formatDuration(value: number | null): string {
 }
 
 export function formatTechnicalSummary(technical: TechnicalInfo): string {
-  const fileDetails = [
+  const metadata = [
     technical.resolution ? `${technical.resolution}p` : 'Risoluzione —',
     technical.codec || 'Codec —',
     technical.hdr || '',
     `Durata ${formatDuration(technical.duration)}`,
-    `Totale ${formatMetric(technical.overallBitrate, 1e6, 'Mb/s')}`,
+  ].filter(Boolean).join(' · ');
+  const fileDetails = [
+    `Totale File: ${formatMetric(technical.overallBitrate, 1e6, 'Mb/s')}`,
     `File ${formatBytes(technical.totalBytes)}`,
   ].filter(Boolean).join(' · ');
   const videoDetails = [
-    `Video ${formatMetric(technical.videoBitrate, 1e6, 'Mb/s')}`,
+    `Traccia Video: ${formatMetric(technical.videoBitrate, 1e6, 'Mb/s')}`,
     `Traccia video ${formatBytes(technical.videoBytes)}`,
   ].filter(Boolean).join(' · ');
-  return `${fileDetails}\n${videoDetails}`;
+  return `${metadata} ·\n${fileDetails}\n${videoDetails}`;
 }
 
 export function renderTechnicalSummary(document: Document, technical: TechnicalInfo): HTMLParagraphElement {
@@ -52,4 +54,23 @@ export function renderTechnicalSummary(document: Document, technical: TechnicalI
     paragraph.append(strong);
   });
   return paragraph;
+}
+
+function declaredResolution(label: string): { value: number; text: string } | null {
+  const named = label.match(/\b(2160|1440|1080|720|576|540|480|360)p\b/i)?.[1];
+  if (named) return { value: Number(named), text: `${named}p` };
+  return /\b4K\b/i.test(label) ? { value: 2160, text: '4K' } : null;
+}
+
+export function renderResolutionAmbiguity(
+  document: Document,
+  label: string,
+  technical: TechnicalInfo,
+): HTMLParagraphElement | null {
+  const declared = declaredResolution(label);
+  if (!declared || technical.resolution === null || declared.value === technical.resolution) return null;
+  const warning = document.createElement('p');
+  warning.className = 'version-ambiguity small';
+  warning.textContent = `${technical.resolution}p da MediaInfo · articolo etichettato ${declared.text}.`;
+  return warning;
 }
