@@ -188,6 +188,7 @@ export interface SidebarStartupDependencies {
   loadSettings(): Promise<void>;
   initializeOverlayWidth(): Promise<void>;
   loadCatalog(): Promise<void>;
+  refreshOptionalStatus(): Promise<void>;
   readSnapshot(): Promise<void>;
 }
 
@@ -197,6 +198,7 @@ export async function runSidebarStartup(dependencies: SidebarStartupDependencies
     dependencies.initializeOverlayWidth(),
   ]);
   void dependencies.loadCatalog().catch(() => undefined);
+  void dependencies.refreshOptionalStatus().catch(() => undefined);
   await dependencies.readSnapshot();
 }
 

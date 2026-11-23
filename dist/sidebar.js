@@ -508,6 +508,7 @@ async function runSidebarStartup(dependencies) {
     dependencies.initializeOverlayWidth()
   ]);
   void dependencies.loadCatalog().catch(() => void 0);
+  void dependencies.refreshOptionalStatus().catch(() => void 0);
   await dependencies.readSnapshot();
 }
 
@@ -1727,7 +1728,6 @@ async function readSnapshot(action = "snapshot") {
 }
 async function loadSettingsSummary() {
   settings = await background("settings.get");
-  await logDirectorySettings.refresh();
   fillSettingsFields(settings, settingsFields());
   element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 MDBList: ${settings.mdblistConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"} \xB7 backend JD in produzione non verificato per commit.`;
   renderCreateState();
@@ -1928,6 +1928,7 @@ void (async () => {
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,
     loadCatalog,
+    refreshOptionalStatus: () => logDirectorySettings.refresh(),
     readSnapshot
   });
 })().catch((reason) => status(reason instanceof Error ? reason.message : "Avvio JSpider non riuscito.", true));

@@ -312,11 +312,33 @@ describe('sidebar startup', () => {
       loadSettings: async () => { calls.push('settings'); },
       initializeOverlayWidth: async () => { calls.push('width'); },
       loadCatalog: async () => { calls.push('catalog'); await catalog; },
+      refreshOptionalStatus: async () => { calls.push('optional-status'); },
       readSnapshot: async () => { calls.push('snapshot'); },
     });
 
     expect(calls).toContain('width');
     expect(calls).toContain('snapshot');
     releaseCatalog();
+  });
+
+  it('does not let an unresolved optional status check block the page snapshot', async () => {
+    const calls: string[] = [];
+    let releaseOptionalStatus!: () => void;
+    const optionalStatus = new Promise<void>((resolve) => { releaseOptionalStatus = resolve; });
+
+    await runSidebarStartup({
+      loadSettings: async () => { calls.push('settings'); },
+      initializeOverlayWidth: async () => { calls.push('width'); },
+      loadCatalog: async () => { calls.push('catalog'); },
+      refreshOptionalStatus: async () => {
+        calls.push('optional-status');
+        await optionalStatus;
+      },
+      readSnapshot: async () => { calls.push('snapshot'); },
+    });
+
+    expect(calls).toContain('optional-status');
+    expect(calls).toContain('snapshot');
+    releaseOptionalStatus();
   });
 });

@@ -524,7 +524,6 @@ async function readSnapshot(action = 'snapshot'): Promise<void> {
 
 async function loadSettingsSummary(): Promise<void> {
   settings = await background<SettingsSummary>('settings.get');
-  await logDirectorySettings.refresh();
   fillSettingsFields(settings, settingsFields());
   element('settings-state').textContent = `TaskFlow: ${settings.taskflowConfigured ? 'configurato' : 'token mancante'} · TMDB: ${settings.tmdbConfigured ? 'configurato' : 'token mancante'} · OMDb: ${settings.omdbConfigured ? 'configurato' : 'API key mancante'} · MDBList: ${settings.mdblistConfigured ? 'configurato' : 'API key mancante'} · Emby: ${settings.embyConfigured ? 'configurato' : 'config locale mancante'} · backend JD in produzione non verificato per commit.`;
   renderCreateState();
@@ -740,6 +739,7 @@ void (async () => {
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,
     loadCatalog,
+    refreshOptionalStatus: () => logDirectorySettings.refresh(),
     readSnapshot,
   });
 })().catch((reason) => status(reason instanceof Error ? reason.message : 'Avvio JSpider non riuscito.', true));
