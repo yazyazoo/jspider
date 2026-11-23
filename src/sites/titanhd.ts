@@ -5,7 +5,6 @@ import type { SiteAdapter, ThanksFailure, ThanksResult } from './types';
 
 interface TitanEntry {
   panel: Element;
-  quality: Element;
   qualityTab: HTMLElement | null;
   seasonTab: HTMLElement | null;
   season: number | null;
@@ -49,7 +48,7 @@ function entries(document: Document): TitanEntry[] {
           ?? seasonText.match(/Stagione\s+(\d+)/i)?.[1]) || null
         : null;
       items.push({
-        panel, quality, qualityTab, seasonTab, season, releaseKey,
+        panel, qualityTab, seasonTab, season, releaseKey,
         key: `${releaseKey}:${items.length}`,
       });
     }
@@ -60,14 +59,6 @@ function entries(document: Document): TitanEntry[] {
 function videoTile(panel: Element): Element | undefined {
   return [...panel.querySelectorAll('.vm-tile')]
     .find((item) => item.querySelector('strong')?.textContent?.trim() === 'Video');
-}
-
-function hasTechnical(panel: Element | null | undefined): boolean {
-  return Boolean(panel?.querySelector('pre') || (panel && videoTile(panel)));
-}
-
-function hasGate(panel: Element | null | undefined): boolean {
-  return Boolean(panel?.querySelector('[data-hl-links], [data-locked="1"]'));
 }
 
 const refreshedPages = new WeakMap<Document, PageSnapshot>();
@@ -141,75 +132,6 @@ function readPage(document: Document, value: string): PageSnapshot {
     return variant.links.length || !replacement?.links.length ? variant : replacement;
   });
   return current;
-}
-
-function navigation(document: Document) {
-  const list = entries(document);
-  const qualities = [...new Set(list.map((entry) => entry.quality))];
-  const previousQuality = list.map((entry) => entry.qualityTab)
-    .find((tab) => tab && (tab.getAttribute('aria-selected') === 'true' || tab.classList.contains('active')));
-  const previousSeasons = new Map(qualities.map((quality) => [quality,
-    [...quality.querySelectorAll<HTMLElement>('[data-season-tab]')]
-      .find((tab) => tab.getAttribute('aria-selected') === 'true' || tab.classList.contains('active'))]));
-  const changed = new Set<Element>();
-  return {
-    activate(entry: TitanEntry) {
-      if (!entry.qualityTab) throw new Error('Scheda della versione non disponibile.');
-      changed.add(entry.quality);
-      entry.qualityTab.click();
-      entries(document).find((candidate) => candidate.key === entry.key)?.seasonTab?.click();
-    },
-    restore() {
-      for (const quality of changed) {
-        const tab = previousSeasons.get(quality);
-        if (tab?.isConnected) tab.click();
-      }
-      if (changed.size && previousQuality?.isConnected) previousQuality.click();
-    },
-  };
-}
-
-function waitForPanel(
-  document: Document,
-  getPanel: () => Element | undefined,
-  action: () => void,
-  timeoutMs: number,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let finished = false;
-    let observer: MutationObserver | undefined;
-    const finish = (error?: unknown) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      observer?.disconnect();
-      if (error) reject(error); else resolve();
-    };
-    const check = () => {
-      const panel = getPanel();
-      if (panel && hasGate(panel) && hasTechnical(panel)) finish();
-    };
-    observer = new MutationObserver(check);
-    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
-    const timer = setTimeout(() => finish(), timeoutMs);
-    try { action(); check(); } catch (error) { finish(error); }
-  });
-}
-
-async function loadPage(document: Document, value: string): Promise<PageSnapshot> {
-  pageUrl(value);
-  const controls = navigation(document);
-  try {
-    for (const item of entries(document)) {
-      const current = () => entries(document).find((candidate) => candidate.key === item.key)?.panel;
-      if (hasGate(current()) && hasTechnical(current())) continue;
-      if (!item.qualityTab) continue;
-      await waitForPanel(document, current, () => controls.activate(item), 5000);
-    }
-  } finally {
-    controls.restore();
-  }
-  return readPage(document, value);
 }
 
 interface FetchResponse {
@@ -309,7 +231,6 @@ export const titanHdAdapter: SiteAdapter = {
   matches(value) { try { pageUrl(value); return true; } catch { return false; } },
   normalizeUrl: pageUrl,
   readPage,
-  loadPage,
   thankSelected,
 };
 

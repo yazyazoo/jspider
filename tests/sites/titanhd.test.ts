@@ -43,22 +43,26 @@ describe('TitanHD adapter', () => {
     expect(snapshot.variants[1]).toMatchObject({ key: '1080:1', password: '', links: [], locked: true });
   });
 
-  it('loads a lazy release through its native tab and restores the active tab', async () => {
-    document.querySelector('[data-version-key="1080"]')?.querySelector('[data-locked]')?.remove();
+  it('reads current static release panels without activating their tabs', async () => {
+    document.querySelector('[data-version-key="1080"] pre')?.remove();
     document.getElementById('tab-a')?.setAttribute('aria-selected', 'true');
     const clicks: string[] = [];
     document.getElementById('tab-a')?.addEventListener('click', () => clicks.push('a'));
-    document.getElementById('tab-b')?.addEventListener('click', () => {
-      clicks.push('b');
-      setTimeout(() => {
-        const panel = document.querySelector('[data-version-key="1080"]');
-        panel?.insertAdjacentHTML('beforeend', '<div data-hl data-hl-package="Film 1080p"><div data-hl-links="https://terabytez.org/c/film.rar"></div></div>');
-      }, 0);
-    });
+    document.getElementById('tab-b')?.addEventListener('click', () => clicks.push('b'));
 
-    const snapshot = await titanHdAdapter.loadPage?.(document, 'https://titanhd.space/catalogo/14481');
-    expect(snapshot?.variants[1]?.links).toEqual(['https://terabytez.org/c/film.rar']);
-    expect(clicks).toEqual(['b', 'a']);
+    vi.useFakeTimers();
+    try {
+      const snapshotPromise = titanHdAdapter.loadPage
+        ? titanHdAdapter.loadPage(document, 'https://titanhd.space/catalogo/14481')
+        : Promise.resolve(titanHdAdapter.readPage(document, 'https://titanhd.space/catalogo/14481'));
+      await vi.runAllTimersAsync();
+      const snapshot = await snapshotPromise;
+
+      expect(snapshot.variants).toHaveLength(2);
+      expect(clicks).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('thanks selected locked releases through Titan and rereads the unlocked links', async () => {

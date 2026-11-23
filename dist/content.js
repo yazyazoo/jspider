@@ -607,7 +607,6 @@ ${value}
         const season = panel !== quality ? Number(releaseKey.match(/^s(\d+)(?:\||$)/i)?.[1] ?? seasonText.match(/Stagione\s+(\d+)/i)?.[1]) || null : null;
         items.push({
           panel,
-          quality,
           qualityTab,
           seasonTab,
           season,
@@ -620,12 +619,6 @@ ${value}
   }
   function videoTile(panel) {
     return [...panel.querySelectorAll(".vm-tile")].find((item) => item.querySelector("strong")?.textContent?.trim() === "Video");
-  }
-  function hasTechnical(panel) {
-    return Boolean(panel?.querySelector("pre") || panel && videoTile(panel));
-  }
-  function hasGate(panel) {
-    return Boolean(panel?.querySelector('[data-hl-links], [data-locked="1"]'));
   }
   var refreshedPages = /* @__PURE__ */ new WeakMap();
   function structuredMedia(document2) {
@@ -704,73 +697,6 @@ ${value}
       return variant.links.length || !replacement?.links.length ? variant : replacement;
     });
     return current;
-  }
-  function navigation(document2) {
-    const list = entries(document2);
-    const qualities = [...new Set(list.map((entry) => entry.quality))];
-    const previousQuality = list.map((entry) => entry.qualityTab).find((tab) => tab && (tab.getAttribute("aria-selected") === "true" || tab.classList.contains("active")));
-    const previousSeasons = new Map(qualities.map((quality) => [
-      quality,
-      [...quality.querySelectorAll("[data-season-tab]")].find((tab) => tab.getAttribute("aria-selected") === "true" || tab.classList.contains("active"))
-    ]));
-    const changed = /* @__PURE__ */ new Set();
-    return {
-      activate(entry) {
-        if (!entry.qualityTab) throw new Error("Scheda della versione non disponibile.");
-        changed.add(entry.quality);
-        entry.qualityTab.click();
-        entries(document2).find((candidate) => candidate.key === entry.key)?.seasonTab?.click();
-      },
-      restore() {
-        for (const quality of changed) {
-          const tab = previousSeasons.get(quality);
-          if (tab?.isConnected) tab.click();
-        }
-        if (changed.size && previousQuality?.isConnected) previousQuality.click();
-      }
-    };
-  }
-  function waitForPanel(document2, getPanel, action, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      let finished = false;
-      let observer;
-      const finish = (error) => {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timer);
-        observer?.disconnect();
-        if (error) reject(error);
-        else resolve();
-      };
-      const check = () => {
-        const panel = getPanel();
-        if (panel && hasGate(panel) && hasTechnical(panel)) finish();
-      };
-      observer = new MutationObserver(check);
-      observer.observe(document2.body || document2.documentElement, { childList: true, subtree: true, attributes: true });
-      const timer = setTimeout(() => finish(), timeoutMs);
-      try {
-        action();
-        check();
-      } catch (error) {
-        finish(error);
-      }
-    });
-  }
-  async function loadPage2(document2, value) {
-    pageUrl(value);
-    const controls = navigation(document2);
-    try {
-      for (const item of entries(document2)) {
-        const current = () => entries(document2).find((candidate) => candidate.key === item.key)?.panel;
-        if (hasGate(current()) && hasTechnical(current())) continue;
-        if (!item.qualityTab) continue;
-        await waitForPanel(document2, current, () => controls.activate(item), 5e3);
-      }
-    } finally {
-      controls.restore();
-    }
-    return readPage2(document2, value);
   }
   async function thankSelected2(document2, value, variantKeys) {
     const sourceUrl = pageUrl(value);
@@ -868,7 +794,6 @@ ${value}
     },
     normalizeUrl: pageUrl,
     readPage: readPage2,
-    loadPage: loadPage2,
     thankSelected: thankSelected2
   };
 
