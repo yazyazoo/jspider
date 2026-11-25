@@ -70,6 +70,15 @@ import {
   initializeWebUiVersionCheck,
   type TaskFlowWebUiVersion,
 } from './webui-version';
+import {
+  describeFollowSeasonState,
+  FollowSeasonPreparationController,
+  historicalHostsToAdopt,
+  resolveFollowSeasonAvailability,
+  type FollowAvailability,
+  type FollowPreparationResponse,
+} from './follow-season';
+import type { FollowSeasonLogContext } from '../domain/follow-season';
 
 interface RuntimeResponse<T> { ok: boolean; data?: T; error?: { message?: string; [key: string]: unknown } }
 interface WorkflowPreset extends CleanupPreset { name: string; tasks: string[] }
@@ -96,9 +105,16 @@ let catalog: Catalog | null = null;
 let settings: SettingsSummary | null = null;
 let createMode: CreateModeState = initialCreateModeState();
 let manualPassword: string | null = null;
+let logDirectoryStatus: LogDirectoryStatus = {
+  configured: false, name: null, permission: 'missing',
+};
+let followDependencySignature = '';
+let followRefreshScheduled = false;
+let adoptHistoricalHostsOnNextPreparation = false;
 const tmdbResultGate = new LatestResultGate();
 const embyResultGate = new LatestResultGate();
 const ratingsResultGate = new LatestResultGate();
+const followPreparation = new FollowSeasonPreparationController();
 const bitrateLimitState = createBitrateLimitState({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items),
@@ -132,8 +148,12 @@ const logDirectorySettings = initializeLogDirectorySettings({
   chooseButton: element<HTMLButtonElement>('log-directory-choose'),
 }, {
   async loadStatus() {
-    try { return await background<LogDirectoryStatus>('taskflow.logDirectory.status'); }
-    catch { return { configured: false, name: null, permission: 'missing' }; }
+    try {
+      logDirectoryStatus = await background<LogDirectoryStatus>('taskflow.logDirectory.status');
+    } catch {
+      logDirectoryStatus = { configured: false, name: null, permission: 'missing' };
+    }
+    return logDirectoryStatus;
   },
   async openPicker() {
     await chrome.tabs.create({ url: chrome.runtime.getURL('log-directory.html') });
@@ -165,7 +185,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes['jspider.quickWorkflowLog']) refreshQuickLog();
   if (areaName === 'local'
     && (changes['jspider.logDirectoryName'] || changes['jspider.logDirectoryRevision'])) {
-    void logDirectorySettings.refresh();
+    void logDirectorySettings.refresh().then(renderCreateState);
   }
 });
 initializeFullWebUiToggle({
@@ -221,6 +241,108 @@ function selectedHosts(): Array<'filestore.me' | 'terabytez.org'> {
     ...(input('filestore').checked ? ['filestore.me' as const] : []),
     ...(input('terabytez').checked ? ['terabytez.org' as const] : []),
   ];
+}
+
+function followAvailability(): FollowAvailability {
+  return resolveFollowSeasonAvailability({
+    metadata,
+    variants: selectedVariants(),
+    hosts: selectedHosts(),
+    createMode: createMode.selected,
+    autodownload: input('autodownload').checked,
+    logStatus: logDirectoryStatus,
+  });
+}
+
+function followContext(availability = followAvailability()): FollowSeasonLogContext {
+  const validatedMetadata = metadata;
+  if (!availability.available || validatedMetadata?.mode !== 'validated') {
+    throw new Error(availability.available
+      ? 'Dati Segui stagione non validi.' : availability.reason);
+  }
+  const validatedTitle = candidates.find((candidate) => candidate.id === validatedMetadata.id)?.title
+    ?? input('title').value.trim();
+  return {
+    mediaKind: 'tv', tmdbId: validatedMetadata.id, season: availability.season,
+    hosts: selectedHosts(), title: validatedTitle,
+  };
+}
+
+function currentFollowSignature(): string {
+  return JSON.stringify({
+    metadata,
+    variants: selectedVariants().map((variant) => ({
+      key: variant.key, season: variant.season, links: variant.links,
+    })),
+    hosts: selectedHosts(),
+    createMode: createMode.selected,
+    autodownload: input('autodownload').checked,
+    logDirectoryStatus,
+    title: input('title').value,
+  });
+}
+
+function syncFollowDependencies(): void {
+  const signature = currentFollowSignature();
+  if (signature === followDependencySignature) return;
+  followDependencySignature = signature;
+  followPreparation.invalidate();
+  if (!input('follow-season').checked || !followAvailability().available || followRefreshScheduled) return;
+  followRefreshScheduled = true;
+  queueMicrotask(() => {
+    followRefreshScheduled = false;
+    void refreshFollowPreparation().catch(() => undefined);
+  });
+}
+
+function renderFollowSeasonState(): { blocking: boolean } {
+  const checkbox = input('follow-season');
+  const availability = followAvailability();
+  checkbox.disabled = createMode.locked || (!availability.available && !checkbox.checked);
+  const presentation = describeFollowSeasonState({
+    enabled: checkbox.checked,
+    availability,
+    preparation: followPreparation.state(),
+    hosts: selectedHosts(),
+  });
+  const container = checkbox.closest<HTMLElement>('.follow-season-control');
+  container?.classList.toggle('active', checkbox.checked && presentation.tone === 'active');
+  container?.classList.toggle('error', checkbox.checked && presentation.tone === 'error');
+  element('follow-season-state').textContent = !checkbox.checked && !availability.available
+    ? availability.reason : presentation.text;
+  return { blocking: checkbox.checked && presentation.blocking };
+}
+
+async function refreshFollowPreparation(): Promise<FollowPreparationResponse | null> {
+  const availability = followAvailability();
+  if (!availability.available) {
+    followPreparation.invalidate();
+    renderCreateState();
+    return null;
+  }
+  const follow = followContext(availability);
+  const pending = followPreparation.prepare(() => background<FollowPreparationResponse>(
+    'taskflow.followSeason.prepare',
+    { follow, variants: selectedVariants() },
+  ));
+  renderCreateState();
+  try {
+    const result = await pending;
+    if (!result) return null;
+    const historicalHosts = historicalHostsToAdopt(
+      result, selectedHosts(), adoptHistoricalHostsOnNextPreparation,
+    );
+    adoptHistoricalHostsOnNextPreparation = false;
+    if (historicalHosts) {
+      input('filestore').checked = historicalHosts.includes('filestore.me');
+      input('terabytez').checked = historicalHosts.includes('terabytez.org');
+      renderCreateState();
+      return null;
+    }
+    return result;
+  } finally {
+    renderCreateState();
+  }
 }
 
 function recommendation() {
@@ -482,9 +604,12 @@ function renderCreateState(): void {
     phase2: element('phase-2'),
     phase3: element('phase-3'),
   });
+  syncFollowDependencies();
+  const followState = renderFollowSeasonState();
   select('workflow-preset').disabled = createMode.locked || !autodownload;
   input('cleanup').disabled = createMode.locked || !autodownload;
-  input('quick-workflow').disabled = createMode.locked || !snapshot || !validity.phase3;
+  input('quick-workflow').disabled = createMode.locked || !snapshot || !validity.phase3
+    || followState.blocking;
   input('load-packages').disabled = createMode.locked || !snapshot || !validity.phase3;
 }
 
@@ -561,8 +686,20 @@ input('limit').addEventListener('input', () => {
     console.warn('JSpider: limite bitrate non salvato.', reason);
   });
 });
-for (const id of ['filestore', 'terabytez', 'workflow-name']) input(id).addEventListener('input', renderCreateState);
+for (const id of ['filestore', 'terabytez']) input(id).addEventListener('input', () => {
+  adoptHistoricalHostsOnNextPreparation = false;
+  renderCreateState();
+});
+input('workflow-name').addEventListener('input', renderCreateState);
 input('autodownload').addEventListener('change', renderCreateState);
+input('follow-season').addEventListener('change', () => {
+  adoptHistoricalHostsOnNextPreparation = input('follow-season').checked;
+  followPreparation.invalidate();
+  renderCreateState();
+  if (input('follow-season').checked && followAvailability().available) {
+    void refreshFollowPreparation().catch(() => undefined);
+  }
+});
 select('workflow-preset').addEventListener('change', renderCatalog);
 input('rar-password').addEventListener('input', () => {
   manualPassword = input('rar-password').value;
@@ -658,8 +795,19 @@ element('quick-workflow').addEventListener('click', () => {
     if (createMode.selected !== 'quick' || createMode.locked) return;
     const autodownload = input('autodownload').checked;
     if (autodownload && !metadata) throw new Error('Valida un candidato TMDB o conferma il fallback.');
-    const variants = selectedVariants();
+    let variants = selectedVariants();
     const hosts = selectedHosts();
+    let follow: FollowSeasonLogContext | undefined;
+    if (input('follow-season').checked) {
+      followPreparation.invalidate();
+      const prepared = await refreshFollowPreparation();
+      if (!prepared) throw new Error('Lo storico Segui è cambiato: riprova Quick Workflow.');
+      if (!prepared.newCount || !prepared.variants.length) {
+        throw new Error('Nessun nuovo link da elaborare per questa stagione e questo host.');
+      }
+      variants = prepared.variants;
+      follow = followContext();
+    }
     const preset = autodownload
       ? requireQuickWorkflowPreset(select('workflow-preset').value)
       : select('workflow-preset').value;
@@ -683,6 +831,7 @@ element('quick-workflow').addEventListener('click', () => {
       startError: { message?: string } | null;
     }>('taskflow.quickWorkflow', {
       variants, hosts, autodownload,
+      ...(follow ? { follow } : {}),
       ...(workflow ? { workflow } : {}),
     });
     if (result.submissionOnly) {
@@ -739,7 +888,10 @@ void (async () => {
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,
     loadCatalog,
-    refreshOptionalStatus: () => logDirectorySettings.refresh(),
+    refreshOptionalStatus: async () => {
+      await logDirectorySettings.refresh();
+      renderCreateState();
+    },
     readSnapshot,
   });
 })().catch((reason) => status(reason instanceof Error ? reason.message : 'Avvio JSpider non riuscito.', true));

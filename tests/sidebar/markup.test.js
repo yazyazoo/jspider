@@ -104,6 +104,20 @@ describe('sidebar fallback action', () => {
       .toEqual(['phase-1', 'phase-2', 'phase-3']);
   });
 
+  it('places Follow season beside host selection with an accessible explanation', () => {
+    const document = sidebar();
+    const control = document.querySelector('#follow-season');
+    const hostFieldset = document.querySelector('#host-selection');
+    expect(control).not.toBeNull();
+    expect(control?.closest('#phase-2')).not.toBeNull();
+    expect(hostFieldset?.nextElementSibling?.contains(control)).toBe(true);
+    expect(document.querySelector('#follow-season-state')?.getAttribute('aria-live')).toBe('polite');
+    const info = document.querySelector('[aria-describedby="tip-follow-season"]');
+    expect(info?.hasAttribute('data-tooltip')).toBe(true);
+    expect(document.querySelector('#tip-follow-season')?.textContent)
+      .toContain('URL esatti');
+  });
+
   it('requires an explicit preset and replaces the old footer with a WebUI button', () => {
     const document = sidebar();
     expect(document.querySelector('#workflow-preset option[value=""]')?.textContent)

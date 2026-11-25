@@ -1307,6 +1307,96 @@ function initializeWebUiVersionCheck(view, dependencies) {
   };
 }
 
+// src/sidebar/follow-season.ts
+function hostLabel(hosts) {
+  return hosts.map((host) => host === "filestore.me" ? "Filestore" : "Terabytez").join(" + ");
+}
+function sameHosts(left, right) {
+  return [...left].sort().join("|") === [...right].sort().join("|");
+}
+function historicalHostsToAdopt(result, currentHosts, allowAdoption) {
+  if (!allowAdoption || result.matchedFiles !== 0 || !result.historicalHosts || sameHosts(result.historicalHosts, currentHosts)) return null;
+  return [...result.historicalHosts];
+}
+function describeFollowSeasonState(input2) {
+  if (!input2.enabled) return { text: "Disattivato.", blocking: false, tone: "idle" };
+  if (!input2.availability.available) {
+    return { text: input2.availability.reason, blocking: true, tone: "error" };
+  }
+  if (input2.preparation.pending) {
+    return { text: "Confronto con lo storico Segui\u2026", blocking: true, tone: "active" };
+  }
+  if (input2.preparation.error) {
+    return { text: input2.preparation.error, blocking: true, tone: "error" };
+  }
+  const result = input2.preparation.result;
+  if (!result) {
+    return { text: "Storico Segui da verificare.", blocking: true, tone: "idle" };
+  }
+  if (!result.newCount) {
+    return {
+      text: "Nessun nuovo link da elaborare per questa stagione e questo host.",
+      blocking: true,
+      tone: "active"
+    };
+  }
+  const summary = `Segui S${input2.availability.season} attivo su ${hostLabel(input2.hosts)} \xB7 ${result.processedCount} link gi\xE0 elaborati \xB7 ${result.newCount} nuovi.`;
+  const changedHost = result.matchedFiles === 0 && result.historicalHosts && !sameHosts(result.historicalHosts, input2.hosts);
+  return {
+    text: changedHost ? `${summary} Host diverso dallo storico: viene usata una catena host separata.` : summary,
+    blocking: false,
+    tone: "active"
+  };
+}
+function resolveFollowSeasonAvailability(input2) {
+  if (input2.metadata?.mode !== "validated" || input2.metadata.mediaKind !== "tv") {
+    return { available: false, reason: "Valida una serie con ID TMDB per usare Segui stagione." };
+  }
+  const seasons = [...new Set(input2.variants.map((variant) => variant.season))];
+  if (!input2.variants.length || seasons.length !== 1 || !Number.isSafeInteger(seasons[0])) {
+    return { available: false, reason: "Segui stagione richiede versioni di una sola stagione." };
+  }
+  if (!input2.hosts.length) {
+    return { available: false, reason: "Seleziona almeno un host per usare Segui stagione." };
+  }
+  if (input2.createMode !== "quick") {
+    return { available: false, reason: "Segui stagione \xE8 disponibile soltanto con Quick Workflow." };
+  }
+  if (!input2.autodownload) {
+    return { available: false, reason: "Segui stagione richiede Autodownload attivo." };
+  }
+  if (!input2.logStatus.configured || !input2.logStatus.name || !["granted", "unknown"].includes(input2.logStatus.permission)) {
+    return { available: false, reason: "Configura e autorizza la cartella log per usare Segui stagione." };
+  }
+  return { available: true, season: seasons[0] };
+}
+var FollowSeasonPreparationController = class {
+  revision = 0;
+  current = { pending: false, result: null, error: null };
+  state() {
+    return this.current;
+  }
+  invalidate() {
+    this.revision += 1;
+    this.current = { pending: false, result: null, error: null };
+  }
+  async prepare(load) {
+    const revision = ++this.revision;
+    this.current = { pending: true, result: null, error: null };
+    try {
+      const result = await load();
+      if (revision !== this.revision) return null;
+      this.current = { pending: false, result, error: null };
+      return result;
+    } catch (reason) {
+      if (revision !== this.revision) return null;
+      const message = reason instanceof Error ? reason.message : "Preparazione Segui non riuscita.";
+      this.current = { pending: false, result: null, error: message };
+      throw reason;
+    }
+  }
+};
+
 // src/sidebar/index.ts
 var element = (id) => document.getElementById(id);
 var input = (id) => element(id);
@@ -1321,9 +1411,18 @@ var catalog = null;
 var settings = null;
 var createMode = initialCreateModeState();
 var manualPassword = null;
+var logDirectoryStatus = {
+  configured: false,
+  name: null,
+  permission: "missing"
+};
+var followDependencySignature = "";
+var followRefreshScheduled = false;
+var adoptHistoricalHostsOnNextPreparation = false;
 var tmdbResultGate = new LatestResultGate();
 var embyResultGate = new LatestResultGate();
 var ratingsResultGate = new LatestResultGate();
+var followPreparation = new FollowSeasonPreparationController();
 var bitrateLimitState = createBitrateLimitState({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items)
@@ -1358,10 +1457,11 @@ var logDirectorySettings = initializeLogDirectorySettings({
 }, {
   async loadStatus() {
     try {
-      return await background("taskflow.logDirectory.status");
+      logDirectoryStatus = await background("taskflow.logDirectory.status");
     } catch {
-      return { configured: false, name: null, permission: "missing" };
+      logDirectoryStatus = { configured: false, name: null, permission: "missing" };
     }
+    return logDirectoryStatus;
   },
   async openPicker() {
     await chrome.tabs.create({ url: chrome.runtime.getURL("log-directory.html") });
@@ -1393,7 +1493,7 @@ quickLogButton.addEventListener("click", refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes["jspider.quickWorkflowLog"]) refreshQuickLog();
   if (areaName === "local" && (changes["jspider.logDirectoryName"] || changes["jspider.logDirectoryRevision"])) {
-    void logDirectorySettings.refresh();
+    void logDirectorySettings.refresh().then(renderCreateState);
   }
 });
 initializeFullWebUiToggle({
@@ -1443,6 +1543,106 @@ function selectedHosts() {
     ...input("filestore").checked ? ["filestore.me"] : [],
     ...input("terabytez").checked ? ["terabytez.org"] : []
   ];
+}
+function followAvailability() {
+  return resolveFollowSeasonAvailability({
+    metadata,
+    variants: selectedVariants(),
+    hosts: selectedHosts(),
+    createMode: createMode.selected,
+    autodownload: input("autodownload").checked,
+    logStatus: logDirectoryStatus
+  });
+}
+function followContext(availability = followAvailability()) {
+  const validatedMetadata = metadata;
+  if (!availability.available || validatedMetadata?.mode !== "validated") {
+    throw new Error(availability.available ? "Dati Segui stagione non validi." : availability.reason);
+  }
+  const validatedTitle = candidates.find((candidate) => candidate.id === validatedMetadata.id)?.title ?? input("title").value.trim();
+  return {
+    mediaKind: "tv",
+    tmdbId: validatedMetadata.id,
+    season: availability.season,
+    hosts: selectedHosts(),
+    title: validatedTitle
+  };
+}
+function currentFollowSignature() {
+  return JSON.stringify({
+    metadata,
+    variants: selectedVariants().map((variant) => ({
+      key: variant.key,
+      season: variant.season,
+      links: variant.links
+    })),
+    hosts: selectedHosts(),
+    createMode: createMode.selected,
+    autodownload: input("autodownload").checked,
+    logDirectoryStatus,
+    title: input("title").value
+  });
+}
+function syncFollowDependencies() {
+  const signature = currentFollowSignature();
+  if (signature === followDependencySignature) return;
+  followDependencySignature = signature;
+  followPreparation.invalidate();
+  if (!input("follow-season").checked || !followAvailability().available || followRefreshScheduled) return;
+  followRefreshScheduled = true;
+  queueMicrotask(() => {
+    followRefreshScheduled = false;
+    void refreshFollowPreparation().catch(() => void 0);
+  });
+}
+function renderFollowSeasonState() {
+  const checkbox = input("follow-season");
+  const availability = followAvailability();
+  checkbox.disabled = createMode.locked || !availability.available && !checkbox.checked;
+  const presentation = describeFollowSeasonState({
+    enabled: checkbox.checked,
+    availability,
+    preparation: followPreparation.state(),
+    hosts: selectedHosts()
+  });
+  const container = checkbox.closest(".follow-season-control");
+  container?.classList.toggle("active", checkbox.checked && presentation.tone === "active");
+  container?.classList.toggle("error", checkbox.checked && presentation.tone === "error");
+  element("follow-season-state").textContent = !checkbox.checked && !availability.available ? availability.reason : presentation.text;
+  return { blocking: checkbox.checked && presentation.blocking };
+}
+async function refreshFollowPreparation() {
+  const availability = followAvailability();
+  if (!availability.available) {
+    followPreparation.invalidate();
+    renderCreateState();
+    return null;
+  }
+  const follow = followContext(availability);
+  const pending = followPreparation.prepare(() => background(
+    "taskflow.followSeason.prepare",
+    { follow, variants: selectedVariants() }
+  ));
+  renderCreateState();
+  try {
+    const result = await pending;
+    if (!result) return null;
+    const historicalHosts = historicalHostsToAdopt(
+      result,
+      selectedHosts(),
+      adoptHistoricalHostsOnNextPreparation
+    );
+    adoptHistoricalHostsOnNextPreparation = false;
+    if (historicalHosts) {
+      input("filestore").checked = historicalHosts.includes("filestore.me");
+      input("terabytez").checked = historicalHosts.includes("terabytez.org");
+      renderCreateState();
+      return null;
+    }
+    return result;
+  } finally {
+    renderCreateState();
+  }
 }
 function recommendation() {
   return recommendVersions(
@@ -1684,9 +1884,11 @@ function renderCreateState() {
     phase2: element("phase-2"),
     phase3: element("phase-3")
   });
+  syncFollowDependencies();
+  const followState = renderFollowSeasonState();
   select("workflow-preset").disabled = createMode.locked || !autodownload;
   input("cleanup").disabled = createMode.locked || !autodownload;
-  input("quick-workflow").disabled = createMode.locked || !snapshot || !validity.phase3;
+  input("quick-workflow").disabled = createMode.locked || !snapshot || !validity.phase3 || followState.blocking;
   input("load-packages").disabled = createMode.locked || !snapshot || !validity.phase3;
 }
 async function readSnapshot(action = "snapshot") {
@@ -1768,8 +1970,20 @@ input("limit").addEventListener("input", () => {
     console.warn("JSpider: limite bitrate non salvato.", reason);
   });
 });
-for (const id of ["filestore", "terabytez", "workflow-name"]) input(id).addEventListener("input", renderCreateState);
+for (const id of ["filestore", "terabytez"]) input(id).addEventListener("input", () => {
+  adoptHistoricalHostsOnNextPreparation = false;
+  renderCreateState();
+});
+input("workflow-name").addEventListener("input", renderCreateState);
 input("autodownload").addEventListener("change", renderCreateState);
+input("follow-season").addEventListener("change", () => {
+  adoptHistoricalHostsOnNextPreparation = input("follow-season").checked;
+  followPreparation.invalidate();
+  renderCreateState();
+  if (input("follow-season").checked && followAvailability().available) {
+    void refreshFollowPreparation().catch(() => void 0);
+  }
+});
 select("workflow-preset").addEventListener("change", renderCatalog);
 input("rar-password").addEventListener("input", () => {
   manualPassword = input("rar-password").value;
@@ -1861,8 +2075,19 @@ element("quick-workflow").addEventListener("click", () => {
     if (createMode.selected !== "quick" || createMode.locked) return;
     const autodownload = input("autodownload").checked;
     if (autodownload && !metadata) throw new Error("Valida un candidato TMDB o conferma il fallback.");
-    const variants = selectedVariants();
+    let variants = selectedVariants();
     const hosts = selectedHosts();
+    let follow;
+    if (input("follow-season").checked) {
+      followPreparation.invalidate();
+      const prepared = await refreshFollowPreparation();
+      if (!prepared) throw new Error("Lo storico Segui \xE8 cambiato: riprova Quick Workflow.");
+      if (!prepared.newCount || !prepared.variants.length) {
+        throw new Error("Nessun nuovo link da elaborare per questa stagione e questo host.");
+      }
+      variants = prepared.variants;
+      follow = followContext();
+    }
     const preset = autodownload ? requireQuickWorkflowPreset(select("workflow-preset").value) : select("workflow-preset").value;
     const workflow = autodownload ? {
       workflowName: requireWorkflowName(input("workflow-name").value),
@@ -1878,6 +2103,7 @@ element("quick-workflow").addEventListener("click", () => {
       variants,
       hosts,
       autodownload,
+      ...follow ? { follow } : {},
       ...workflow ? { workflow } : {}
     });
     if (result.submissionOnly) {
@@ -1928,7 +2154,10 @@ void (async () => {
     loadSettings: loadSettingsSummary,
     initializeOverlayWidth,
     loadCatalog,
-    refreshOptionalStatus: () => logDirectorySettings.refresh(),
+    refreshOptionalStatus: async () => {
+      await logDirectorySettings.refresh();
+      renderCreateState();
+    },
     readSnapshot
   });
 })().catch((reason) => status(reason instanceof Error ? reason.message : "Avvio JSpider non riuscito.", true));

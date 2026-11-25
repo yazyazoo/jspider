@@ -1,4 +1,10 @@
 import type { QuickWorkflowLogDocument } from './quick-workflow-log';
+import {
+  hasSuccessfulFollowStart,
+  parseFollowLogFilename,
+  sameFollowChain,
+  type FollowSeasonKey,
+} from '../domain/follow-season';
 
 const DATABASE_NAME = 'jspider-local-files';
 const DATABASE_VERSION = 1;
@@ -10,6 +16,7 @@ type ReadWriteMode = { mode: 'readwrite' };
 export interface WritableDirectoryHandle extends FileSystemDirectoryHandle {
   queryPermission(options?: ReadWriteMode): Promise<PermissionState>;
   requestPermission(options?: ReadWriteMode): Promise<PermissionState>;
+  entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
 }
 export interface LogDirectoryRepositoryLike {
   load(): Promise<WritableDirectoryHandle | null>;
@@ -18,6 +25,11 @@ export interface LogDirectoryStatus {
   configured: boolean;
   name: string | null;
   permission: PermissionState | 'missing' | 'unknown';
+}
+export interface FollowLogHistory {
+  documents: unknown[];
+  matchedFiles: number;
+  historicalHosts: FollowSeasonKey['hosts'] | null;
 }
 
 export async function readDirectoryPermission(
@@ -126,5 +138,74 @@ export class QuickWorkflowFileWriter {
     await writable.write(`${JSON.stringify(document, null, 2)}\n`);
     await writable.close();
     return true;
+  }
+}
+
+export class FollowLogHistoryReader {
+  constructor(private readonly repository: LogDirectoryRepositoryLike) {}
+
+  async read(key: FollowSeasonKey): Promise<FollowLogHistory> {
+    const directory = await this.repository.load();
+    if (!directory) throw new Error('Configura la cartella log per usare Segui stagione.');
+    const permission = await readDirectoryPermission(directory);
+    if (permission !== 'granted' && permission !== 'unknown') {
+      throw new Error('Permesso alla cartella log non disponibile.');
+    }
+    if (typeof directory.entries !== 'function') {
+      throw new Error('Il browser non consente di leggere la cartella log configurata.');
+    }
+
+    const indexed: Array<{ name: string; key: FollowSeasonKey }> = [];
+    for await (const [name, handle] of directory.entries()) {
+      if (handle.kind !== 'file') continue;
+      const parsed = parseFollowLogFilename(name);
+      if (parsed && parsed.mediaKind === key.mediaKind && parsed.tmdbId === key.tmdbId
+        && parsed.season === key.season) {
+        indexed.push({ name, key: parsed });
+      }
+    }
+    indexed.sort((left, right) => left.name.localeCompare(right.name));
+
+    const cache = new Map<string, unknown>();
+    const read = async (name: string, required: boolean): Promise<unknown | null> => {
+      if (cache.has(name)) return cache.get(name)!;
+      try {
+        const handle = await directory.getFileHandle(name);
+        const file = await handle.getFile();
+        const document = JSON.parse(await file.text()) as unknown;
+        if (document === null || typeof document !== 'object' || Array.isArray(document)
+          || (document as Record<string, unknown>).fileName !== name) {
+          throw new Error('filename mismatch');
+        }
+        cache.set(name, document);
+        return document;
+      } catch {
+        if (required) throw new Error(`Log Segui illeggibile: ${name}`);
+        return null;
+      }
+    };
+
+    let historicalHosts: FollowSeasonKey['hosts'] | null = null;
+    for (const candidate of indexed) {
+      const document = await read(candidate.name, sameFollowChain(candidate.key, key));
+      if (!document) continue;
+      try {
+        if (hasSuccessfulFollowStart(document)) {
+          historicalHosts = candidate.key.hosts;
+          break;
+        }
+      } catch {
+        if (sameFollowChain(candidate.key, key)) {
+          throw new Error(`Log Segui illeggibile: ${candidate.name}`);
+        }
+      }
+    }
+
+    const exact = indexed.filter((candidate) => sameFollowChain(candidate.key, key));
+    const documents: unknown[] = [];
+    for (const candidate of exact) {
+      documents.push(await read(candidate.name, true));
+    }
+    return { documents, matchedFiles: exact.length, historicalHosts };
   }
 }

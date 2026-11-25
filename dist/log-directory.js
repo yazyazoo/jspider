@@ -1,3 +1,12 @@
+// src/domain/follow-season.ts
+var HOST_TOKENS = {
+  "filestore.me": "filestore",
+  "terabytez.org": "terabytez"
+};
+var TOKEN_HOSTS = Object.fromEntries(
+  Object.entries(HOST_TOKENS).map(([host, token]) => [token, host])
+);
+
 // src/background/log-directory.ts
 var DATABASE_NAME = "jspider-local-files";
 var DATABASE_VERSION = 1;

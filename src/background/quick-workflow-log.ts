@@ -1,5 +1,9 @@
 import type { QuickWorkflowLogEvent } from '../domain/taskflow-pipeline';
 import { createWorkflowLogFilename } from './log-directory';
+import {
+  createFollowLogFilename,
+  type FollowSeasonLogContext,
+} from '../domain/follow-season';
 
 export interface QuickWorkflowLogStorage {
   get(key: string): Promise<Record<string, unknown>>;
@@ -93,14 +97,16 @@ export class QuickWorkflowLogStore {
     return isDocument(result[STORAGE_KEY]) ? result[STORAGE_KEY] : null;
   }
 
-  start(workflowName = 'Quick Workflow'): Promise<string> {
+  start(workflowName = 'Quick Workflow', follow?: FollowSeasonLogContext): Promise<string> {
     const runId = this.createRunId();
     return this.serialize(async () => {
       const timestamp = this.now();
       const document: QuickWorkflowLogDocument = {
         runId,
         workflowName,
-        fileName: createWorkflowLogFilename(workflowName, timestamp),
+        fileName: follow
+          ? createFollowLogFilename(follow, timestamp)
+          : createWorkflowLogFilename(workflowName, timestamp),
         startedAt: timestamp,
         updatedAt: timestamp,
         entries: [],

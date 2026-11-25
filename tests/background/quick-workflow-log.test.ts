@@ -6,6 +6,7 @@ import {
   type QuickWorkflowLogStorage,
 } from '../../src/background/quick-workflow-log';
 import { createWorkflowLogFilename } from '../../src/background/log-directory';
+import type { FollowSeasonLogContext } from '../../src/domain/follow-season';
 
 function memoryStorage(): QuickWorkflowLogStorage & { values: Record<string, unknown> } {
   const values: Record<string, unknown> = {};
@@ -18,6 +19,23 @@ function memoryStorage(): QuickWorkflowLogStorage & { values: Record<string, unk
 }
 
 describe('QuickWorkflowLogStore', () => {
+  it('uses the indexed Follow filename only when a Follow context is supplied', async () => {
+    const storage = memoryStorage();
+    const follow: FollowSeasonLogContext = {
+      mediaKind: 'tv', tmdbId: 12345, season: 10,
+      hosts: ['terabytez.org'], title: 'MasterChef',
+    };
+    const store = new QuickWorkflowLogStore(
+      storage, () => '2026-11-23T13:32:11.004Z', () => 'run-follow',
+    );
+
+    await store.start('MasterChef S10', follow);
+
+    expect(await store.read()).toMatchObject({
+      fileName: expect.stringMatching(/_follow_tmdb-tv-12345_host-terabytez_MasterChef_S10\.json$/),
+    });
+  });
+
   it('replaces the previous run and appends timestamped JSON entries in order', async () => {
     const storage = memoryStorage();
     const times = [
