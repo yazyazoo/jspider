@@ -28,9 +28,10 @@
         <label for="mdblist-api-key" class="spaced">API key MDBList</label>
         <input id="mdblist-api-key" type="text" autocomplete="off">
         <div class="log-directory-setting spaced">
-          <label>Cartella log Quick Workflow</label>
-          <p id="log-directory-state" class="muted small">Nessuna cartella log configurata.</p>
-          <button id="log-directory-choose" class="secondary" type="button">Scegli cartella log</button>
+          <label for="log-directory-config">Percorso completo cartella log</label>
+          <input id="log-directory-config" type="text" autocomplete="off" spellcheck="false" placeholder="C:\Users\nome\JSpider\log">
+          <p id="log-directory-state" class="muted small">Verifica configurazione in corso…</p>
+          <button id="log-directory-choose" class="secondary" type="button">Allinea cartella progetto e config</button>
         </div>
         <div class="webui-version-setting spaced">
           <div class="label-info"><strong>WebUI TaskFlow</strong><button type="button" class="info-button" data-tooltip aria-describedby="tip-webui-version" aria-label="Informazioni sull’aggiornamento WebUI">i</button><span id="tip-webui-version" role="tooltip" hidden>JSpider può controllare la versione, ma Chromium non può avviare test e build. Per aggiornare usa Aggiorna-WebUI.cmd su Windows oppure Aggiorna-WebUI.command su macOS dalla root della repository.</span></div>

@@ -6,5 +6,5 @@
   "mdblistApiKey": "INSERISCI_API_KEY_MDBLIST",
   "embyBaseUrl": "https://emby.example",
   "embyToken": "INSERISCI_TOKEN_EMBY",
-  "_logDirectory": "SELEZIONA_DALLE_IMPOSTAZIONI_JSPIDER"
+  "_logDirectory": "INSERISCI_PERCORSO_COMPLETO_CARTELLA_LOG"
 }

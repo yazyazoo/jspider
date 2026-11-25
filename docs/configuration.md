@@ -21,12 +21,14 @@ directly beside the extracted `manifest.json`.
 | `mdblistApiKey` | MDBList API key used for read-only ratings and awards lookup |
 | `embyBaseUrl` | HTTPS origin of the Emby server |
 | `embyToken` | Emby API token sent only through the `X-Emby-Token` header |
-| `_logDirectory` | Informational placeholder: choose the folder from JSpider settings; Chromium does not accept a filesystem path from this JSON file |
+| `_logDirectory` | Full `log` folder path, shown in clear text and automatically aligned by JSpider's picker |
 
-TaskFlow, TMDB, OMDb, and MDBList values can also be saved from the JSpider settings
-panel. Explicit browser values in `chrome.storage.local`, including empty
-values, override their local defaults. During the current test phase those
-settings fields intentionally show their values in clear text.
+TaskFlow, TMDB, OMDb, and MDBList values can also be saved from the JSpider
+settings panel. Every property explicitly present in `config.local.json`,
+including an empty value, takes precedence and is synchronized to
+`chrome.storage.local`. Edge storage is only a fallback for properties absent
+from the JSON. During the current test phase those settings fields
+intentionally show their values in clear text.
 
 Emby is configured only through `config.local.json`. Its lookup is read-only,
 uses the validated TMDB ID when available, and falls back to title/year only
@@ -49,10 +51,23 @@ Never replace placeholders in `config.example.json` with real credentials.
 
 ## Quick Workflow log folder
 
-Use **Settings → Choose log folder** to authorize a local directory. Because
-the sidebar is embedded in the source site, JSpider opens a small top-level
-extension page where Chromium can safely show the directory picker. Select the
-repository's ignored `log` directory.
+Enter the complete `log` directory path and use **Settings → Align project
+folder and config**. In the extension page, select the project root (`JSpider`
+or `JSpider-follow-season`), not the `log` folder. JSpider verifies that the
+entered path belongs to the selected root, creates `log` when missing, stores
+Chromium's authorization, and updates both the root and `dist`
+`config.local.json` files when `dist` exists. Other values, including keys and
+tokens, are preserved.
+
+The **CONFIG AND CHROMIUM ALIGNED** state confirms that the complete JSON path
+matches the path authorized by the browser. **CONFIG MISSING**, **CHROMIUM NOT
+AUTHORIZED**, and **NOT ALIGNED** identify which side still needs attention.
+
+When Chromium already stores a previous `log` handle, use **Confirm previously
+authorized folder** to associate the visible full path with that handle without
+opening the picker again. This is also the recommended path on Chromium 157 for
+Windows versions affected by the regression that may incorrectly return an
+`AbortError` after a valid selection.
 
 Each Quick Workflow run creates one readable JSON file prefixed with its local
 start date/time and followed by the workflow name. Sorting the directory by
