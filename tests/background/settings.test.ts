@@ -67,7 +67,7 @@ describe('visible extension settings', () => {
     );
   });
 
-  it('lets saved properties override local defaults, including an explicit empty value', async () => {
+  it('lets explicit local properties override and synchronize saved values', async () => {
     localConfig = {
       taskflowBaseUrl: 'https://taskflow.local',
       taskflowToken: 'local-taskflow',
@@ -83,11 +83,29 @@ describe('visible extension settings', () => {
 
     await expect(loadSettings()).resolves.toEqual({
       taskflowBaseUrl: 'https://taskflow.local',
-      taskflowToken: '',
-      tmdbCredential: 'saved-tmdb',
+      taskflowToken: 'local-taskflow',
+      tmdbCredential: 'local-tmdb',
       omdbApiKey: 'local-omdb',
-      mdblistApiKey: 'saved-mdblist',
+      mdblistApiKey: 'local-mdblist',
     });
+    expect(storage[STORAGE_KEY]).toEqual({
+      taskflowBaseUrl: 'https://taskflow.local',
+      taskflowToken: 'local-taskflow',
+      tmdbCredential: 'local-tmdb',
+      omdbApiKey: 'local-omdb',
+      mdblistApiKey: 'local-mdblist',
+    });
+  });
+
+  it('treats an explicit empty local value as authoritative', async () => {
+    localConfig = { mdblistApiKey: '' };
+    storage[STORAGE_KEY] = {
+      taskflowBaseUrl: 'https://taskflow.example',
+      mdblistApiKey: 'saved-mdblist',
+    };
+
+    await expect(loadSettings()).resolves.toMatchObject({ mdblistApiKey: '' });
+    expect(storage[STORAGE_KEY]).toMatchObject({ mdblistApiKey: '' });
   });
 
   it('keeps saved settings usable when the local JSON is malformed', async () => {
@@ -135,6 +153,7 @@ describe('visible extension settings', () => {
     localConfig = {
       embyBaseUrl: 'http://emby.example:8096',
       embyToken: 'emby-secret',
+      _logDirectory: 'C:\\Media\\JSpider\\log',
     };
     storage[STORAGE_KEY] = {
       taskflowBaseUrl: 'https://taskflow.example',
@@ -151,6 +170,7 @@ describe('visible extension settings', () => {
       omdbApiKey: 'omdb-secret',
       mdblistApiKey: 'mdblist-secret',
       embyBaseUrl: 'http://emby.example:8096',
+      logDirectoryConfig: 'C:\\Media\\JSpider\\log',
       taskflowConfigured: true,
       tmdbConfigured: true,
       omdbConfigured: true,
@@ -206,11 +226,24 @@ describe('visible extension settings', () => {
       omdbApiKey: 'new-omdb',
       mdblistApiKey: 'new-mdblist',
       embyBaseUrl: '',
+      logDirectoryConfig: '',
       taskflowConfigured: false,
       tmdbConfigured: false,
       omdbConfigured: true,
       mdblistConfigured: true,
       embyConfigured: false,
     });
+  });
+
+  it('reasserts config-backed values after saving different UI values', async () => {
+    localConfig = { mdblistApiKey: 'local-mdblist' };
+    storage[STORAGE_KEY] = {
+      taskflowBaseUrl: 'https://taskflow.example', mdblistApiKey: 'saved-mdblist',
+    };
+
+    const result = await updateSettings({ mdblistApiKey: 'ui-mdblist' });
+
+    expect(result.mdblistApiKey).toBe('local-mdblist');
+    expect(storage[STORAGE_KEY]).toMatchObject({ mdblistApiKey: 'local-mdblist' });
   });
 });

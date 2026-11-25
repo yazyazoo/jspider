@@ -64,7 +64,10 @@ import {
   initializeQuickWorkflowLog,
 } from './quick-workflow-log';
 import type { QuickWorkflowLogDocument } from '../background/quick-workflow-log';
-import { initializeLogDirectorySettings } from './log-directory-settings';
+import {
+  initializeLogDirectorySettings,
+  type LogDirectorySettingsStatus,
+} from './log-directory-settings';
 import type { LogDirectoryStatus } from '../background/log-directory';
 import {
   initializeWebUiVersionCheck,
@@ -128,14 +131,26 @@ initializeWebUiVersionCheck({
 });
 const quickLogButton = element<HTMLButtonElement>('quick-log-button');
 const logDirectorySettings = initializeLogDirectorySettings({
+  pathInput: input('log-directory-config'),
   state: element('log-directory-state'),
   chooseButton: element<HTMLButtonElement>('log-directory-choose'),
 }, {
   async loadStatus() {
-    try { return await background<LogDirectoryStatus>('taskflow.logDirectory.status'); }
-    catch { return { configured: false, name: null, permission: 'missing' }; }
+    const [directory, summary, stored] = await Promise.all([
+      background<LogDirectoryStatus>('taskflow.logDirectory.status')
+        .catch(() => ({ configured: false, name: null, permission: 'missing' } as const)),
+      background<SettingsSummary>('settings.get'),
+      chrome.storage.local.get('jspider.logDirectoryPath'),
+    ]);
+    return {
+      ...directory,
+      configuredPath: summary.logDirectoryConfig,
+      authorizedPath: typeof stored['jspider.logDirectoryPath'] === 'string'
+        ? stored['jspider.logDirectoryPath'] : null,
+    } satisfies LogDirectorySettingsStatus;
   },
-  async openPicker() {
+  async openPicker(path) {
+    await chrome.storage.local.set({ 'jspider.logDirectoryDraft': path });
     await chrome.tabs.create({ url: chrome.runtime.getURL('log-directory.html') });
   },
 });
@@ -164,7 +179,8 @@ quickLogButton.addEventListener('click', refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes['jspider.quickWorkflowLog']) refreshQuickLog();
   if (areaName === 'local'
-    && (changes['jspider.logDirectoryName'] || changes['jspider.logDirectoryRevision'])) {
+    && (changes['jspider.logDirectoryName'] || changes['jspider.logDirectoryPath']
+      || changes['jspider.logDirectoryRevision'])) {
     void logDirectorySettings.refresh();
   }
 });
@@ -525,6 +541,7 @@ async function readSnapshot(action = 'snapshot'): Promise<void> {
 async function loadSettingsSummary(): Promise<void> {
   settings = await background<SettingsSummary>('settings.get');
   fillSettingsFields(settings, settingsFields());
+  input('log-directory-config').value = settings.logDirectoryConfig;
   element('settings-state').textContent = `TaskFlow: ${settings.taskflowConfigured ? 'configurato' : 'token mancante'} · TMDB: ${settings.tmdbConfigured ? 'configurato' : 'token mancante'} · OMDb: ${settings.omdbConfigured ? 'configurato' : 'API key mancante'} · MDBList: ${settings.mdblistConfigured ? 'configurato' : 'API key mancante'} · Emby: ${settings.embyConfigured ? 'configurato' : 'config locale mancante'} · backend JD in produzione non verificato per commit.`;
   renderCreateState();
 }

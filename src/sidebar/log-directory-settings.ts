@@ -1,28 +1,43 @@
 import type { LogDirectoryStatus } from '../background/log-directory';
 
+export interface LogDirectorySettingsStatus extends LogDirectoryStatus {
+  configuredPath: string;
+  authorizedPath: string | null;
+}
 export interface LogDirectorySettingsView {
+  pathInput: HTMLInputElement;
   state: HTMLElement;
   chooseButton: HTMLButtonElement;
 }
 export interface LogDirectorySettingsDependencies {
-  loadStatus(): Promise<LogDirectoryStatus>;
-  openPicker(): Promise<void>;
+  loadStatus(): Promise<LogDirectorySettingsStatus>;
+  openPicker(path: string): Promise<void>;
 }
 export function renderLogDirectoryStatus(
   view: LogDirectorySettingsView,
-  status: LogDirectoryStatus,
+  status: LogDirectorySettingsStatus,
 ): void {
-  if (!status.configured || !status.name) {
-    view.state.textContent = 'Nessuna cartella log configurata.';
-    view.chooseButton.textContent = 'Scegli cartella log';
+  view.pathInput.value = status.configuredPath;
+  view.chooseButton.textContent = 'Allinea cartella progetto e config';
+  if (!status.configuredPath) {
+    view.state.textContent = 'CONFIG MANCANTE · inserisci il percorso completo della cartella log.';
     return;
   }
-  view.chooseButton.textContent = 'Cambia cartella';
-  view.state.textContent = status.permission === 'granted'
-    ? `${status.name} · scrittura autorizzata`
-    : status.permission === 'unknown'
-      ? `${status.name} · cartella salvata`
-      : `${status.name} · autorizzazione da rinnovare`;
+  if (!status.configured || !status.name || status.permission === 'prompt'
+      || status.permission === 'denied' || status.permission === 'missing') {
+    view.state.textContent = `CHROMIUM NON AUTORIZZATO · config: ${status.configuredPath}.`;
+    return;
+  }
+  if (!status.authorizedPath) {
+    view.state.textContent = `NON ALLINEATI · config: ${status.configuredPath} · Chromium: percorso completo non verificato.`;
+    return;
+  }
+  if (status.configuredPath !== status.authorizedPath) {
+    view.state.textContent = `NON ALLINEATI · config: ${status.configuredPath} · Chromium: ${status.authorizedPath}.`;
+    return;
+  }
+  view.chooseButton.textContent = 'Cambia cartella progetto';
+  view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${status.configuredPath}.`;
 }
 export function initializeLogDirectorySettings(
   view: LogDirectorySettingsView,
@@ -35,8 +50,13 @@ export function initializeLogDirectorySettings(
     renderLogDirectoryStatus(view, await dependencies.loadStatus());
   };
   const choose = () => {
-    view.state.textContent = 'Completa la scelta nella nuova scheda JSpider.';
-    void dependencies.openPicker();
+    const path = view.pathInput.value.trim();
+    if (!path) {
+      view.state.textContent = 'CONFIG MANCANTE · inserisci il percorso completo della cartella log.';
+      return;
+    }
+    view.state.textContent = 'Seleziona la cartella progetto nella nuova scheda JSpider.';
+    void dependencies.openPicker(path);
   };
   view.chooseButton.addEventListener('click', choose);
   return {

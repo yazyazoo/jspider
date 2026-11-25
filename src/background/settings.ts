@@ -15,6 +15,7 @@ export interface SettingsSummary {
   omdbApiKey: string;
   mdblistApiKey: string;
   embyBaseUrl: string;
+  logDirectoryConfig: string;
   taskflowConfigured: boolean;
   tmdbConfigured: boolean;
   omdbConfigured: boolean;
@@ -92,10 +93,15 @@ export async function loadSettings(): Promise<StoredSettings> {
     chrome.storage.local.get(STORAGE_KEY),
     loadLocalConfig(),
   ]);
-  return normalizeStored({
-    ...local,
+  const stored = normalizeStored(selectSettings(result[STORAGE_KEY]));
+  const settings = normalizeStored({
     ...selectSettings(result[STORAGE_KEY]),
+    ...selectSettings(local),
   });
+  if (SETTINGS_KEYS.some((key) => settings[key] !== stored[key])) {
+    await chrome.storage.local.set({ [STORAGE_KEY]: settings });
+  }
+  return settings;
 }
 
 export async function loadEmbySettings(): Promise<EmbySettings> {
@@ -107,7 +113,9 @@ export async function loadEmbySettings(): Promise<EmbySettings> {
 }
 
 export async function settingsSummary(): Promise<SettingsSummary> {
-  const [settings, emby] = await Promise.all([loadSettings(), loadEmbySettings()]);
+  const [settings, emby, local] = await Promise.all([
+    loadSettings(), loadEmbySettings(), loadLocalConfig(),
+  ]);
   return {
     taskflowBaseUrl: settings.taskflowBaseUrl,
     taskflowToken: settings.taskflowToken,
@@ -115,6 +123,8 @@ export async function settingsSummary(): Promise<SettingsSummary> {
     omdbApiKey: settings.omdbApiKey,
     mdblistApiKey: settings.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
+    logDirectoryConfig: typeof local._logDirectory === 'string'
+      ? local._logDirectory.trim() : '',
     taskflowConfigured: Boolean(settings.taskflowToken),
     tmdbConfigured: Boolean(settings.tmdbCredential),
     omdbConfigured: Boolean(settings.omdbApiKey),
@@ -134,19 +144,6 @@ export async function updateSettings(patch: Record<string, unknown>): Promise<Se
     mdblistApiKey: typeof patch.mdblistApiKey === 'string' ? patch.mdblistApiKey.trim() : current.mdblistApiKey,
   };
   await chrome.storage.local.set({ [STORAGE_KEY]: next });
-  const emby = await loadEmbySettings();
-  return {
-    taskflowBaseUrl: next.taskflowBaseUrl,
-    taskflowToken: next.taskflowToken,
-    tmdbCredential: next.tmdbCredential,
-    omdbApiKey: next.omdbApiKey,
-    mdblistApiKey: next.mdblistApiKey,
-    embyBaseUrl: emby.baseUrl,
-    taskflowConfigured: Boolean(next.taskflowToken),
-    tmdbConfigured: Boolean(next.tmdbCredential),
-    omdbConfigured: Boolean(next.omdbApiKey),
-    mdblistConfigured: Boolean(next.mdblistApiKey),
-    embyConfigured: Boolean(emby.baseUrl && emby.token),
-  };
+  return settingsSummary();
 }
 

@@ -9,10 +9,13 @@
 <body>
   <main>
     <span class="eyebrow">JSPIDER · LOG QUICK WORKFLOW</span>
-    <h1>Scegli la cartella log<span>.</span></h1>
-    <p>Seleziona la cartella <strong>log</strong> della repository JSpider. Ogni esecuzione Quick Workflow vi salverà un file JSON distinto.</p>
-    <button id="choose-directory" type="button">Scegli cartella</button>
-    <p id="directory-state" role="status">Nessuna cartella selezionata.</p>
+    <h1>Allinea log e configurazione<span>.</span></h1>
+    <label for="directory-path">Percorso completo cartella log</label>
+    <input id="directory-path" type="text" autocomplete="off" spellcheck="false" placeholder="C:\Users\nome\JSpider\log">
+    <p>Inserisci il percorso completo, poi seleziona la <strong>cartella progetto</strong> che contiene <code>config.local.json</code>, <code>dist</code> e <code>log</code>. Non selezionare direttamente <code>log</code>.</p>
+    <button id="confirm-existing-directory" class="secondary" type="button" hidden>Conferma cartella già autorizzata</button>
+    <button id="choose-directory" type="button">Allinea cartella progetto e config</button>
+    <p id="directory-state" role="status">In attesa del percorso completo.</p>
   </main>
   <script type="module" src="log-directory.js"></script>
 </body>

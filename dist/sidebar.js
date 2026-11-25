@@ -1230,21 +1230,39 @@ function initializeQuickWorkflowLog(view, dependencies) {
 
 // src/sidebar/log-directory-settings.ts
 function renderLogDirectoryStatus(view, status2) {
-  if (!status2.configured || !status2.name) {
-    view.state.textContent = "Nessuna cartella log configurata.";
-    view.chooseButton.textContent = "Scegli cartella log";
+  view.pathInput.value = status2.configuredPath;
+  view.chooseButton.textContent = "Allinea cartella progetto e config";
+  if (!status2.configuredPath) {
+    view.state.textContent = "CONFIG MANCANTE \xB7 inserisci il percorso completo della cartella log.";
     return;
   }
-  view.chooseButton.textContent = "Cambia cartella";
-  view.state.textContent = status2.permission === "granted" ? `${status2.name} \xB7 scrittura autorizzata` : status2.permission === "unknown" ? `${status2.name} \xB7 cartella salvata` : `${status2.name} \xB7 autorizzazione da rinnovare`;
+  if (!status2.configured || !status2.name || status2.permission === "prompt" || status2.permission === "denied" || status2.permission === "missing") {
+    view.state.textContent = `CHROMIUM NON AUTORIZZATO \xB7 config: ${status2.configuredPath}.`;
+    return;
+  }
+  if (!status2.authorizedPath) {
+    view.state.textContent = `NON ALLINEATI \xB7 config: ${status2.configuredPath} \xB7 Chromium: percorso completo non verificato.`;
+    return;
+  }
+  if (status2.configuredPath !== status2.authorizedPath) {
+    view.state.textContent = `NON ALLINEATI \xB7 config: ${status2.configuredPath} \xB7 Chromium: ${status2.authorizedPath}.`;
+    return;
+  }
+  view.chooseButton.textContent = "Cambia cartella progetto";
+  view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${status2.configuredPath}.`;
 }
 function initializeLogDirectorySettings(view, dependencies) {
   const refresh = async () => {
     renderLogDirectoryStatus(view, await dependencies.loadStatus());
   };
   const choose = () => {
-    view.state.textContent = "Completa la scelta nella nuova scheda JSpider.";
-    void dependencies.openPicker();
+    const path = view.pathInput.value.trim();
+    if (!path) {
+      view.state.textContent = "CONFIG MANCANTE \xB7 inserisci il percorso completo della cartella log.";
+      return;
+    }
+    view.state.textContent = "Seleziona la cartella progetto nella nuova scheda JSpider.";
+    void dependencies.openPicker(path);
   };
   view.chooseButton.addEventListener("click", choose);
   return {
@@ -1353,17 +1371,24 @@ initializeWebUiVersionCheck({
 });
 var quickLogButton = element("quick-log-button");
 var logDirectorySettings = initializeLogDirectorySettings({
+  pathInput: input("log-directory-config"),
   state: element("log-directory-state"),
   chooseButton: element("log-directory-choose")
 }, {
   async loadStatus() {
-    try {
-      return await background("taskflow.logDirectory.status");
-    } catch {
-      return { configured: false, name: null, permission: "missing" };
-    }
+    const [directory, summary, stored] = await Promise.all([
+      background("taskflow.logDirectory.status").catch(() => ({ configured: false, name: null, permission: "missing" })),
+      background("settings.get"),
+      chrome.storage.local.get("jspider.logDirectoryPath")
+    ]);
+    return {
+      ...directory,
+      configuredPath: summary.logDirectoryConfig,
+      authorizedPath: typeof stored["jspider.logDirectoryPath"] === "string" ? stored["jspider.logDirectoryPath"] : null
+    };
   },
-  async openPicker() {
+  async openPicker(path) {
+    await chrome.storage.local.set({ "jspider.logDirectoryDraft": path });
     await chrome.tabs.create({ url: chrome.runtime.getURL("log-directory.html") });
   }
 });
@@ -1392,7 +1417,7 @@ var refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
 quickLogButton.addEventListener("click", refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes["jspider.quickWorkflowLog"]) refreshQuickLog();
-  if (areaName === "local" && (changes["jspider.logDirectoryName"] || changes["jspider.logDirectoryRevision"])) {
+  if (areaName === "local" && (changes["jspider.logDirectoryName"] || changes["jspider.logDirectoryPath"] || changes["jspider.logDirectoryRevision"])) {
     void logDirectorySettings.refresh();
   }
 });
@@ -1729,6 +1754,7 @@ async function readSnapshot(action = "snapshot") {
 async function loadSettingsSummary() {
   settings = await background("settings.get");
   fillSettingsFields(settings, settingsFields());
+  input("log-directory-config").value = settings.logDirectoryConfig;
   element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 MDBList: ${settings.mdblistConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"} \xB7 backend JD in produzione non verificato per commit.`;
   renderCreateState();
 }

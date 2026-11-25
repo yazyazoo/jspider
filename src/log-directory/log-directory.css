@@ -5,6 +5,11 @@ main { width: min(560px, calc(100vw - 48px)); padding: 34px; border: 1px solid #
 h1 { margin: 5px 0 16px; font-size: 32px; }
 h1 span { color: #65dfbf; }
 p { color: #b8d0d7; }
+label { display: block; margin: 18px 0 7px; font-weight: 800; }
+input { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid #42606a; border-radius: 9px; background: #081722; color: #eefafa; font: inherit; }
+input:focus { outline: 2px solid #65dfbf; outline-offset: 1px; }
+code { color: #d9fff4; }
 button { margin-top: 12px; padding: 12px 18px; border: 1px solid #65dfbf; border-radius: 9px; background: #65dfbf; color: #082018; font: inherit; font-weight: 800; cursor: pointer; }
+button.secondary { margin-right: 8px; background: #18313d; color: #eaf6f5; }
 button:disabled { opacity: .5; cursor: default; }
-#directory-state { min-height: 24px; margin: 16px 0 0; }
+#directory-state { min-height: 24px; margin: 16px 0 0; overflow-wrap: anywhere; }

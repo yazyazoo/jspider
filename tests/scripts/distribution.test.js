@@ -60,7 +60,7 @@ describe('local distribution configuration', () => {
   it('publishes an MDBList placeholder without publishing a local key', async () => {
     const example = JSON.parse(await readFile(new URL('../../config.example.json', import.meta.url), 'utf8'));
     expect(example.mdblistApiKey).toBe('INSERISCI_API_KEY_MDBLIST');
-    expect(example._logDirectory).toBe('SELEZIONA_DALLE_IMPOSTAZIONI_JSPIDER');
+    expect(example._logDirectory).toBe('INSERISCI_PERCORSO_COMPLETO_CARTELLA_LOG');
   });
 
   it('copies an existing local configuration byte for byte', async () => {
