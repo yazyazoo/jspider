@@ -66,19 +66,19 @@ button.quiet { background: transparent; color: var(--muted); font-size: 12px; pa
 .rating-awards { width: 100%; max-width: 100%; align-items: flex-start; border-color: #866f3b; border-radius: 12px; color: #f1d995; line-height: 1.35; }
 .rating-awards .rating-value { min-width: 0; overflow: visible; overflow-wrap: anywhere; white-space: normal; }
 .poster { width: 96px; aspect-ratio: 2/3; object-fit: cover; border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; }
-.emby-status { position: relative; min-height: 62px; margin-top: 10px; padding: 11px 88px 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: #0e1922; color: var(--muted); font-size: 12px; }
-.emby-heading { display: block; margin-bottom: 4px; color: var(--text); font-size: 12px; }
+.emby-status { position: relative; min-height: 62px; margin-top: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: #0e1922; color: var(--muted); font-size: 12px; }
+.emby-heading { display: block; margin-bottom: 4px; padding-right: 88px; color: var(--text); font-size: 12px; }
 .emby-season-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 9px; }
 .emby-season-button { min-width: 38px; min-height: 27px; padding: 4px 7px; border-color: var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 11px; line-height: 1; }
 .emby-season-button[aria-pressed="true"] { border-color: var(--accent); background: #16302b; color: #c9f7e9; }
 .emby-file-list { display: grid; gap: 3px; }
 .emby-file-row { display: grid; grid-template-columns: 10px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 19px; }
-.emby-file-name { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.emby-file-name { min-width: 0; color: var(--text); overflow-wrap: anywhere; white-space: normal; }
 .emby-led { width: 8px; height: 8px; border-radius: 50%; background: #70808a; box-shadow: 0 0 0 2px #70808a22; }
 .emby-led.present { background: #ef6f6c; box-shadow: 0 0 0 2px #ef6f6c22; }
 .emby-led.absent { background: var(--accent); box-shadow: 0 0 0 2px #6ce5be22; }
 .emby-led.ambiguous, .emby-led.unavailable { background: #e0c78c; box-shadow: 0 0 0 2px #e0c78c22; }
-.emby-result-label { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.emby-result-label { position: absolute; top: 11px; right: 12px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
 .emby-status.present .emby-result-label { color: #efaaa8; }
 .emby-status.absent .emby-result-label { color: var(--accent); }
 .emby-status.ambiguous .emby-result-label, .emby-status.unavailable .emby-result-label { color: #e0c78c; }

@@ -14,6 +14,24 @@ describe('responsive sidebar layout', () => {
     expect(css).not.toMatch(/\.emby-season-list\s*\{[^}]*overflow-x:\s*(?:auto|scroll)/s);
   });
 
+  it('shows complete Emby filenames on multiple lines without ellipsis', () => {
+    const filenameRule = css.match(/\.emby-file-name\s*\{([^}]*)\}/s)?.[1] ?? '';
+    expect(filenameRule).toMatch(/white-space:\s*normal/);
+    expect(filenameRule).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(filenameRule).not.toMatch(/text-overflow:\s*ellipsis/);
+    expect(filenameRule).not.toMatch(/overflow:\s*hidden/);
+  });
+
+  it('keeps the Emby result on the heading row without reserving filename width', () => {
+    const statusRule = css.match(/\.emby-status\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const headingRule = css.match(/\.emby-heading\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const resultRule = css.match(/\.emby-result-label\s*\{([^}]*)\}/s)?.[1] ?? '';
+    expect(statusRule).toMatch(/padding:\s*11px\s+12px/);
+    expect(headingRule).toMatch(/padding-right:/);
+    expect(resultRule).toMatch(/top:\s*11px/);
+    expect(resultRule).not.toMatch(/(?:^|;)\s*transform:/);
+  });
+
   it('moves the right header group to its own right-aligned row at narrow widths', () => {
     const narrow = css.match(/@media \(max-width: 620px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(narrow).toContain('header { flex-wrap: wrap; }');
