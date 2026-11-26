@@ -81,10 +81,14 @@
       <p id="recommendation-notes" class="muted small"></p>
       <div id="versions" aria-label="Versioni disponibili"></div>
       <div class="button-info"><button id="thank-selected" type="button" class="secondary" disabled>Ringrazia le versioni selezionate</button><button type="button" class="info-button" data-tooltip aria-describedby="thanks-hint" aria-label="Informazioni sui ringraziamenti">i</button><span id="thanks-hint" role="tooltip" hidden>Le versioni già sbloccate vengono saltate; selezioni e sidebar restano aperte.</span></div>
-      <fieldset><legend>Host da inviare</legend>
+      <fieldset id="host-selection"><legend>Host da inviare</legend>
         <label class="check"><input type="checkbox" id="filestore" value="filestore.me">Filestore <span id="filestore-count" class="muted"></span></label>
         <label class="check"><input type="checkbox" id="terabytez" value="terabytez.org" checked>Terabytez <span id="terabytez-count" class="muted"></span></label>
       </fieldset>
+      <div class="follow-season-control">
+        <div class="label-info"><label class="check"><input type="checkbox" id="follow-season">Segui stagione</label><button type="button" class="info-button" data-tooltip aria-describedby="tip-follow-season" aria-label="Informazioni su Segui stagione">i</button><span id="tip-follow-season" role="tooltip" hidden>Confronta gli URL esatti con i log Segui riusciti della stessa serie, stagione e insieme di host. Quick Workflow invia soltanto i link nuovi.</span></div>
+        <p id="follow-season-state" class="muted small" aria-live="polite">Disattivato.</p>
+      </div>
       <label for="rar-password" class="spaced">Password RAR</label>
       <input id="rar-password" autocomplete="off" placeholder="Rilevata automaticamente o inserita manualmente">
       <p id="rar-password-state" class="muted small"></p>

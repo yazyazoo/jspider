@@ -1101,6 +1101,117 @@ var OmdbClient = class {
   }
 };
 
+// src/domain/follow-season.ts
+var HOST_TOKENS = {
+  "filestore.me": "filestore",
+  "terabytez.org": "terabytez"
+};
+var TOKEN_HOSTS = Object.fromEntries(
+  Object.entries(HOST_TOKENS).map(([host, token]) => [token, host])
+);
+function normalizeFollowHosts(hosts) {
+  return ARCHIVE_HOSTS.filter((host) => hosts.includes(host));
+}
+function pad(value, length = 2) {
+  return String(value).padStart(length, "0");
+}
+function timestamp(startedAt) {
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) throw new Error("Data log Segui non valida.");
+  return [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join("-") + "_" + [pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds()), pad(date.getMilliseconds(), 3)].join("-");
+}
+function safeFilenamePart(value, fallback) {
+  return value.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^[_.]+|[_.]+$/g, "").slice(0, 100) || fallback;
+}
+function requireKey(key) {
+  const hosts = normalizeFollowHosts(key.hosts);
+  if (key.mediaKind !== "tv" || !Number.isSafeInteger(key.tmdbId) || key.tmdbId <= 0 || !Number.isSafeInteger(key.season) || key.season < 0 || !hosts.length) {
+    throw new Error("Identit\xE0 Segui stagione non valida.");
+  }
+  return { ...key, hosts };
+}
+function createFollowLogFilename(context, startedAt) {
+  const key = requireKey(context);
+  const hosts = key.hosts.map((host) => HOST_TOKENS[host]).join("+");
+  const title = safeFilenamePart(context.title, "Serie");
+  const season = `S${pad(key.season)}`;
+  return `${timestamp(startedAt)}_follow_tmdb-tv-${key.tmdbId}_host-${hosts}_${title}_${season}.json`;
+}
+function parseFollowLogFilename(filename) {
+  const match = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3}_follow_tmdb-tv-(\d+)_host-([a-z]+(?:\+[a-z]+)*)_.+_S(\d+)\.json$/i.exec(filename);
+  if (!match) return null;
+  const hosts = match[2].toLowerCase().split("+").map((token) => TOKEN_HOSTS[token]);
+  if (hosts.some((host) => host === void 0)) return null;
+  try {
+    return requireKey({
+      mediaKind: "tv",
+      tmdbId: Number(match[1]),
+      season: Number(match[3]),
+      hosts
+    });
+  } catch {
+    return null;
+  }
+}
+function sameFollowChain(left, right) {
+  return left.mediaKind === right.mediaKind && left.tmdbId === right.tmdbId && left.season === right.season && normalizeFollowHosts(left.hosts).join("|") === normalizeFollowHosts(right.hosts).join("|");
+}
+function isRecord7(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function requireLogEntries(document) {
+  if (!isRecord7(document) || typeof document.runId !== "string" || typeof document.workflowName !== "string" || typeof document.fileName !== "string" || typeof document.startedAt !== "string" || typeof document.updatedAt !== "string" || !Array.isArray(document.entries) || document.entries.some((entry) => !isRecord7(entry) || typeof entry.phase !== "string" || typeof entry.kind !== "string")) {
+    throw new Error("Log Segui non valido.");
+  }
+  return document.entries;
+}
+function hasSuccessfulFollowStart(document) {
+  return requireLogEntries(document).some((entry) => entry.phase === "start" && entry.kind === "response");
+}
+function readProcessedFollowLinks(documents) {
+  const processed = /* @__PURE__ */ new Set();
+  for (const document of documents) {
+    const entries = requireLogEntries(document);
+    const started = hasSuccessfulFollowStart(document);
+    if (!started) continue;
+    const submission = entries.find((entry) => entry.phase === "submission" && entry.kind === "request");
+    if (!submission || !isRecord7(submission.payload) || !Array.isArray(submission.payload.packages)) {
+      throw new Error("Submission mancante nel log Segui riuscito.");
+    }
+    for (const item2 of submission.payload.packages) {
+      if (!isRecord7(item2) || !Array.isArray(item2.links)) {
+        throw new Error("Submission non valida nel log Segui riuscito.");
+      }
+      for (const rawLink of item2.links) {
+        const link = normalizeArchiveUrl(rawLink);
+        if (!link) throw new Error("Link archivio non valido nel log Segui riuscito.");
+        processed.add(link);
+      }
+    }
+  }
+  return processed;
+}
+function prepareFollowVariants(variants, hosts, processedLinks) {
+  const currentLinks = new Set(variants.flatMap((variant) => selectArchiveLinks(variant.links, hosts)));
+  const processedCount = [...currentLinks].filter((link) => processedLinks.has(link)).length;
+  const emitted = /* @__PURE__ */ new Set();
+  const prepared = variants.flatMap((variant) => {
+    const links = selectArchiveLinks(variant.links, hosts).filter((link) => {
+      if (processedLinks.has(link) || emitted.has(link)) return false;
+      emitted.add(link);
+      return true;
+    });
+    return links.length ? [{ ...variant, links }] : [];
+  });
+  const newLinks = new Set(prepared.flatMap((variant) => variant.links));
+  return {
+    variants: prepared,
+    currentCount: currentLinks.size,
+    processedCount,
+    newCount: newLinks.size
+  };
+}
+
 // src/background/log-directory.ts
 var DATABASE_NAME = "jspider-local-files";
 var DATABASE_VERSION = 1;
@@ -1174,23 +1285,23 @@ var LogDirectoryRepository = class {
     };
   }
 };
-function pad(value, length = 2) {
+function pad2(value, length = 2) {
   return String(value).padStart(length, "0");
 }
 function createWorkflowLogFilename(workflowName, startedAt) {
   const safeName = workflowName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^[_.]+|[_.]+$/g, "").slice(0, 100) || "Quick_Workflow";
   const date = new Date(startedAt);
-  const timestamp = [
+  const timestamp2 = [
     date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate())
+    pad2(date.getMonth() + 1),
+    pad2(date.getDate())
   ].join("-") + "_" + [
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
-    pad(date.getMilliseconds(), 3)
+    pad2(date.getHours()),
+    pad2(date.getMinutes()),
+    pad2(date.getSeconds()),
+    pad2(date.getMilliseconds(), 3)
   ].join("-");
-  return `${timestamp}_${safeName}.json`;
+  return `${timestamp2}_${safeName}.json`;
 }
 var QuickWorkflowFileWriter = class {
   constructor(repository) {
@@ -1210,6 +1321,70 @@ var QuickWorkflowFileWriter = class {
 `);
     await writable.close();
     return true;
+  }
+};
+var FollowLogHistoryReader = class {
+  constructor(repository) {
+    this.repository = repository;
+  }
+  repository;
+  async read(key) {
+    const directory = await this.repository.load();
+    if (!directory) throw new Error("Configura la cartella log per usare Segui stagione.");
+    const permission = await readDirectoryPermission(directory);
+    if (permission !== "granted" && permission !== "unknown") {
+      throw new Error("Permesso alla cartella log non disponibile.");
+    }
+    if (typeof directory.entries !== "function") {
+      throw new Error("Il browser non consente di leggere la cartella log configurata.");
+    }
+    const indexed = [];
+    for await (const [name, handle2] of directory.entries()) {
+      if (handle2.kind !== "file") continue;
+      const parsed = parseFollowLogFilename(name);
+      if (parsed && parsed.mediaKind === key.mediaKind && parsed.tmdbId === key.tmdbId && parsed.season === key.season) {
+        indexed.push({ name, key: parsed });
+      }
+    }
+    indexed.sort((left, right) => left.name.localeCompare(right.name));
+    const cache = /* @__PURE__ */ new Map();
+    const read = async (name, required) => {
+      if (cache.has(name)) return cache.get(name);
+      try {
+        const handle2 = await directory.getFileHandle(name);
+        const file = await handle2.getFile();
+        const document = JSON.parse(await file.text());
+        if (document === null || typeof document !== "object" || Array.isArray(document) || document.fileName !== name) {
+          throw new Error("filename mismatch");
+        }
+        cache.set(name, document);
+        return document;
+      } catch {
+        if (required) throw new Error(`Log Segui illeggibile: ${name}`);
+        return null;
+      }
+    };
+    let historicalHosts = null;
+    for (const candidate2 of indexed) {
+      const document = await read(candidate2.name, sameFollowChain(candidate2.key, key));
+      if (!document) continue;
+      try {
+        if (hasSuccessfulFollowStart(document)) {
+          historicalHosts = candidate2.key.hosts;
+          break;
+        }
+      } catch {
+        if (sameFollowChain(candidate2.key, key)) {
+          throw new Error(`Log Segui illeggibile: ${candidate2.name}`);
+        }
+      }
+    }
+    const exact = indexed.filter((candidate2) => sameFollowChain(candidate2.key, key));
+    const documents = [];
+    for (const candidate2 of exact) {
+      documents.push(await read(candidate2.name, true));
+    }
+    return { documents, matchedFiles: exact.length, historicalHosts };
   }
 };
 
@@ -1270,16 +1445,16 @@ var QuickWorkflowLogStore = class {
     const result = await this.storage.get(STORAGE_KEY2);
     return isDocument(result[STORAGE_KEY2]) ? result[STORAGE_KEY2] : null;
   }
-  start(workflowName = "Quick Workflow") {
+  start(workflowName = "Quick Workflow", follow) {
     const runId = this.createRunId();
     return this.serialize(async () => {
-      const timestamp = this.now();
+      const timestamp2 = this.now();
       const document = {
         runId,
         workflowName,
-        fileName: createWorkflowLogFilename(workflowName, timestamp),
-        startedAt: timestamp,
-        updatedAt: timestamp,
+        fileName: follow ? createFollowLogFilename(follow, timestamp2) : createWorkflowLogFilename(workflowName, timestamp2),
+        startedAt: timestamp2,
+        updatedAt: timestamp2,
         entries: []
       };
       this.runs.set(runId, document);
@@ -1294,13 +1469,13 @@ var QuickWorkflowLogStore = class {
   }
   append(event, runId) {
     return this.serialize(async () => {
-      const timestamp = this.now();
+      const timestamp2 = this.now();
       const targetRunId = runId ?? this.latestRunId;
       if (!targetRunId) return;
       const current = this.runs.get(targetRunId) ?? (this.latestRunId === targetRunId ? await this.readDirect() : null);
       if (!current || current.runId !== targetRunId) return;
       const entry = {
-        timestamp,
+        timestamp: timestamp2,
         phase: event.phase,
         kind: event.kind,
         payload: serializable(event.payload),
@@ -1308,7 +1483,7 @@ var QuickWorkflowLogStore = class {
       };
       const document = {
         ...current,
-        updatedAt: timestamp,
+        updatedAt: timestamp2,
         entries: [...current.entries, entry]
       };
       this.runs.set(targetRunId, document);
@@ -1343,6 +1518,7 @@ async function handleQuickWorkflowLogAction(action, store) {
 
 // src/background/index.ts
 var logDirectory = new LogDirectoryRepository();
+var followLogHistory = new FollowLogHistoryReader(logDirectory);
 var quickWorkflowLog = new QuickWorkflowLogStore({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items),
@@ -1369,6 +1545,50 @@ function serializeError(reason) {
   }
   return serialized;
 }
+function isRecord8(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function requireFollowContext(value) {
+  if (!isRecord8(value) || value.mediaKind !== "tv" || !Number.isSafeInteger(value.tmdbId) || Number(value.tmdbId) <= 0 || !Number.isSafeInteger(value.season) || Number(value.season) < 0 || typeof value.title !== "string" || !value.title.trim() || !Array.isArray(value.hosts)) {
+    throw new Error("Dati Segui stagione non validi.");
+  }
+  const rawHosts = value.hosts;
+  const hosts = normalizeFollowHosts(rawHosts);
+  if (!hosts.length || hosts.length !== rawHosts.length) {
+    throw new Error("Host Segui stagione non validi.");
+  }
+  return {
+    mediaKind: "tv",
+    tmdbId: Number(value.tmdbId),
+    season: Number(value.season),
+    hosts,
+    title: value.title.trim()
+  };
+}
+function requireFollowVariants(value, season) {
+  if (!Array.isArray(value) || !value.length || value.some((variant) => !isRecord8(variant) || variant.season !== season)) {
+    throw new Error("Le versioni Segui devono appartenere a una sola stagione.");
+  }
+  return value;
+}
+function requireQuickWorkflowFollow(message) {
+  if (message.follow === void 0) return void 0;
+  const follow = requireFollowContext(message.follow);
+  const variants = requireFollowVariants(message.variants, follow.season);
+  if (!message.autodownload) {
+    throw new Error("Segui stagione richiede Autodownload e l\u2019avvio del workflow.");
+  }
+  const quickHosts = Array.isArray(message.hosts) ? normalizeFollowHosts(message.hosts) : [];
+  if (!Array.isArray(message.hosts) || quickHosts.length !== message.hosts.length || !sameFollowChain(follow, { ...follow, hosts: quickHosts })) {
+    throw new Error("Gli host Segui non corrispondono agli host Quick Workflow.");
+  }
+  const workflow = isRecord8(message.workflow) ? message.workflow : null;
+  const metadata = workflow && isRecord8(workflow.metadata) ? workflow.metadata : null;
+  if (!metadata || metadata.mode !== "validated" || metadata.mediaKind !== "tv" || metadata.id !== follow.tmdbId || !variants.length) {
+    throw new Error("Segui stagione richiede una serie TMDB validata.");
+  }
+  return follow;
+}
 async function handle(message, sender) {
   if (message.target !== "background") throw new Error("Destinazione messaggio non valida.");
   if (message.action === "page.forward") {
@@ -1383,6 +1603,17 @@ async function handle(message, sender) {
     return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
   if (message.action === "taskflow.logDirectory.status") return logDirectory.status();
+  if (message.action === "taskflow.followSeason.prepare") {
+    const follow = requireFollowContext(message.follow);
+    const variants = requireFollowVariants(message.variants, follow.season);
+    const history = await followLogHistory.read(follow);
+    const processed = readProcessedFollowLinks(history.documents);
+    return {
+      ...prepareFollowVariants(variants, follow.hosts, processed),
+      matchedFiles: history.matchedFiles,
+      historicalHosts: history.historicalHosts
+    };
+  }
   if (message.action === "settings.get") return settingsSummary();
   if (message.action === "settings.save") {
     return updateSettings(message.settings && typeof message.settings === "object" ? message.settings : {});
@@ -1413,10 +1644,11 @@ async function handle(message, sender) {
     return new OmdbClient(settings2.omdbApiKey).lookupAwards(typeof message.imdbId === "string" ? message.imdbId : "");
   }
   if (message.action === "taskflow.quickWorkflow") {
+    const follow = requireQuickWorkflowFollow(message);
     let logRunId = null;
     const workflowName = message.workflow !== null && typeof message.workflow === "object" && typeof message.workflow.workflowName === "string" ? message.workflow.workflowName : "Quick Workflow";
     try {
-      logRunId = await quickWorkflowLog.start(workflowName);
+      logRunId = await quickWorkflowLog.start(workflowName, follow);
     } catch {
     }
     const appendLog = async (event) => {

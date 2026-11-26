@@ -26,12 +26,23 @@ import {
 } from './quick-workflow-log';
 import {
   LogDirectoryRepository,
+  FollowLogHistoryReader,
   QuickWorkflowFileWriter,
 } from './log-directory';
+import {
+  normalizeFollowHosts,
+  prepareFollowVariants,
+  readProcessedFollowLinks,
+  sameFollowChain,
+  type FollowSeasonLogContext,
+} from '../domain/follow-season';
+import type { ReleaseVariant } from '../domain/models';
+import type { ArchiveHost } from '../domain/archive-links';
 
 type Message = { target?: string; action?: string; [key: string]: unknown };
 
 const logDirectory = new LogDirectoryRepository();
+const followLogHistory = new FollowLogHistoryReader(logDirectory);
 const quickWorkflowLog = new QuickWorkflowLogStore({
   get: (key) => chrome.storage.local.get(key),
   set: (items) => chrome.storage.local.set(items),
@@ -61,6 +72,59 @@ function serializeError(reason: unknown): Record<string, unknown> {
   return serialized;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requireFollowContext(value: unknown): FollowSeasonLogContext {
+  if (!isRecord(value) || value.mediaKind !== 'tv'
+    || !Number.isSafeInteger(value.tmdbId) || Number(value.tmdbId) <= 0
+    || !Number.isSafeInteger(value.season) || Number(value.season) < 0
+    || typeof value.title !== 'string' || !value.title.trim()
+    || !Array.isArray(value.hosts)) {
+    throw new Error('Dati Segui stagione non validi.');
+  }
+  const rawHosts = value.hosts as unknown[];
+  const hosts = normalizeFollowHosts(rawHosts as ArchiveHost[]);
+  if (!hosts.length || hosts.length !== rawHosts.length) {
+    throw new Error('Host Segui stagione non validi.');
+  }
+  return {
+    mediaKind: 'tv', tmdbId: Number(value.tmdbId), season: Number(value.season),
+    hosts, title: value.title.trim(),
+  };
+}
+
+function requireFollowVariants(value: unknown, season: number): ReleaseVariant[] {
+  if (!Array.isArray(value) || !value.length
+    || value.some((variant) => !isRecord(variant) || variant.season !== season)) {
+    throw new Error('Le versioni Segui devono appartenere a una sola stagione.');
+  }
+  return value as ReleaseVariant[];
+}
+
+function requireQuickWorkflowFollow(message: Message): FollowSeasonLogContext | undefined {
+  if (message.follow === undefined) return undefined;
+  const follow = requireFollowContext(message.follow);
+  const variants = requireFollowVariants(message.variants, follow.season);
+  if (!message.autodownload) {
+    throw new Error('Segui stagione richiede Autodownload e l’avvio del workflow.');
+  }
+  const quickHosts = Array.isArray(message.hosts)
+    ? normalizeFollowHosts(message.hosts as ArchiveHost[]) : [];
+  if (!Array.isArray(message.hosts) || quickHosts.length !== message.hosts.length
+    || !sameFollowChain(follow, { ...follow, hosts: quickHosts })) {
+    throw new Error('Gli host Segui non corrispondono agli host Quick Workflow.');
+  }
+  const workflow = isRecord(message.workflow) ? message.workflow : null;
+  const metadata = workflow && isRecord(workflow.metadata) ? workflow.metadata : null;
+  if (!metadata || metadata.mode !== 'validated' || metadata.mediaKind !== 'tv'
+    || metadata.id !== follow.tmdbId || !variants.length) {
+    throw new Error('Segui stagione richiede una serie TMDB validata.');
+  }
+  return follow;
+}
+
 async function handle(message: Message, sender: chrome.runtime.MessageSender): Promise<unknown> {
   if (message.target !== 'background') throw new Error('Destinazione messaggio non valida.');
   if (message.action === 'page.forward') {
@@ -78,6 +142,17 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
     return handleQuickWorkflowLogAction(message.action, quickWorkflowLog);
   }
   if (message.action === 'taskflow.logDirectory.status') return logDirectory.status();
+  if (message.action === 'taskflow.followSeason.prepare') {
+    const follow = requireFollowContext(message.follow);
+    const variants = requireFollowVariants(message.variants, follow.season);
+    const history = await followLogHistory.read(follow);
+    const processed = readProcessedFollowLinks(history.documents);
+    return {
+      ...prepareFollowVariants(variants, follow.hosts, processed),
+      matchedFiles: history.matchedFiles,
+      historicalHosts: history.historicalHosts,
+    };
+  }
   if (message.action === 'settings.get') return settingsSummary();
   if (message.action === 'settings.save') {
     return updateSettings(message.settings && typeof message.settings === 'object'
@@ -111,12 +186,13 @@ async function handle(message: Message, sender: chrome.runtime.MessageSender): P
       .lookupAwards(typeof message.imdbId === 'string' ? message.imdbId : '');
   }
   if (message.action === 'taskflow.quickWorkflow') {
+    const follow = requireQuickWorkflowFollow(message);
     let logRunId: string | null = null;
     const workflowName = message.workflow !== null && typeof message.workflow === 'object'
       && typeof (message.workflow as Record<string, unknown>).workflowName === 'string'
       ? (message.workflow as Record<string, unknown>).workflowName as string
       : 'Quick Workflow';
-    try { logRunId = await quickWorkflowLog.start(workflowName); }
+    try { logRunId = await quickWorkflowLog.start(workflowName, follow); }
     catch { /* Diagnostics must never interrupt Quick Workflow. */ }
     const appendLog = async (event: Parameters<typeof quickWorkflowLog.append>[0]) => {
       if (!logRunId) return;

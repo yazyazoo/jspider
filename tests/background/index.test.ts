@@ -10,11 +10,13 @@ describe('background Quick Workflow log actions', () => {
   let listener: MessageListener | undefined;
   let values: Record<string, unknown>;
   let failLogSet: boolean;
+  let logDirectoryHandle: unknown;
 
   beforeEach(async () => {
     vi.resetModules();
     values = {};
     failLogSet = false;
+    logDirectoryHandle = null;
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 })));
     vi.stubGlobal('chrome', {
       action: { onClicked: { addListener: vi.fn() } },
@@ -36,6 +38,9 @@ describe('background Quick Workflow log actions', () => {
         },
       },
     });
+    const { LogDirectoryRepository } = await import('../../src/background/log-directory');
+    vi.spyOn(LogDirectoryRepository.prototype, 'load')
+      .mockImplementation(async () => logDirectoryHandle as never);
     await import('../../src/background/index');
   });
 
@@ -93,6 +98,119 @@ describe('background Quick Workflow log actions', () => {
 
     expect(values['jspider.quickWorkflowLog']).toMatchObject({
       workflowName: 'Film', fileName: expect.stringMatching(/^\d{4}-\d{2}-\d{2}_.*_Film\.json$/),
+    });
+  });
+
+  it('prepares Follow variants from only successfully started indexed history', async () => {
+    const matching = '2026-11-16_10-00-00-000_follow_tmdb-tv-12345_host-terabytez_MasterChef_S10.json';
+    const unrelated = '2026-11-15_10-00-00-000_follow_tmdb-tv-999_host-terabytez_Other_S01.json';
+    const files: Record<string, string> = {
+      [matching]: JSON.stringify({
+        runId: 'old', workflowName: 'MasterChef', fileName: matching,
+        startedAt: '2026-11-16T09:00:00.000Z', updatedAt: '2026-11-16T09:01:00.000Z',
+        entries: [
+          { phase: 'submission', kind: 'request', payload: { packages: [{
+            name: 'S10', links: ['https://terabytez.org/aaaaaaaaaaaa'],
+          }] } },
+          { phase: 'start', kind: 'response', payload: { id: 'workflow-old' } },
+        ],
+      }),
+      [unrelated]: '{ broken but unrelated',
+    };
+    const opened: string[] = [];
+    logDirectoryHandle = {
+      name: 'log', async queryPermission() { return 'granted' as PermissionState; },
+      async *entries() {
+        for (const name of Object.keys(files)) yield [name, { kind: 'file', name }];
+      },
+      async getFileHandle(name: string) {
+        opened.push(name);
+        return { async getFile() { return { async text() { return files[name]; } }; } };
+      },
+    };
+
+    await expect(send('taskflow.followSeason.prepare', {
+      follow: {
+        mediaKind: 'tv', tmdbId: 12345, season: 10,
+        hosts: ['terabytez.org'], title: 'MasterChef',
+      },
+      variants: [{
+        key: 's10', packageName: 'MasterChef S10', password: '', season: 10,
+        links: [
+          'https://terabytez.org/aaaaaaaaaaaa',
+          'https://terabytez.org/bbbbbbbbbbbb',
+        ],
+      }],
+    })).resolves.toMatchObject({
+      ok: true,
+      data: {
+        matchedFiles: 1, currentCount: 2, processedCount: 1, newCount: 1,
+        historicalHosts: ['terabytez.org'],
+        variants: [{ links: ['https://terabytez.org/bbbbbbbbbbbb'] }],
+      },
+    });
+    expect(opened).toEqual([matching]);
+  });
+
+  it('rejects Follow preparation when variants do not belong to its single season', async () => {
+    await expect(send('taskflow.followSeason.prepare', {
+      follow: {
+        mediaKind: 'tv', tmdbId: 12345, season: 10,
+        hosts: ['terabytez.org'], title: 'MasterChef',
+      },
+      variants: [{ key: 's09', packageName: 'S09', password: '', season: 9, links: [] }],
+    })).resolves.toMatchObject({
+      ok: false, error: { message: 'Le versioni Segui devono appartenere a una sola stagione.' },
+    });
+  });
+
+  it('uses a Follow filename for a validated TV Quick Workflow and keeps normal logs unchanged', async () => {
+    values['jspider.settings'] = {
+      taskflowBaseUrl: 'https://taskflow.example', taskflowToken: 'token',
+      tmdbCredential: '', omdbApiKey: '', mdblistApiKey: '',
+    };
+    configureSuccessfulTaskFlow();
+
+    await send('taskflow.quickWorkflow', {
+      variants: [{
+        key: 's10', packageName: 'Film', password: '', season: 10,
+        links: ['https://terabytez.org/a/film.rar'],
+      }],
+      hosts: ['terabytez.org'], autodownload: true,
+      follow: {
+        mediaKind: 'tv', tmdbId: 12345, season: 10,
+        hosts: ['terabytez.org'], title: 'MasterChef',
+      },
+      workflow: {
+        workflowName: 'MasterChef_S10', preset: 'tv-standard',
+        metadata: { mode: 'validated', id: 12345, mediaKind: 'tv' },
+        password: '', cleanupOnSuccess: true,
+      },
+    });
+
+    expect(values['jspider.quickWorkflowLog']).toMatchObject({
+      fileName: expect.stringMatching(/_follow_tmdb-tv-12345_host-terabytez_MasterChef_S10\.json$/),
+    });
+  });
+
+  it('rejects extra Quick Workflow hosts not present in the Follow chain', async () => {
+    await expect(send('taskflow.quickWorkflow', {
+      variants: [{
+        key: 's10', packageName: 'Film', password: '', season: 10,
+        links: ['https://terabytez.org/a/film.rar'],
+      }],
+      hosts: ['terabytez.org', 'unknown.example'], autodownload: true,
+      follow: {
+        mediaKind: 'tv', tmdbId: 12345, season: 10,
+        hosts: ['terabytez.org'], title: 'MasterChef',
+      },
+      workflow: {
+        workflowName: 'MasterChef_S10', preset: 'tv-standard',
+        metadata: { mode: 'validated', id: 12345, mediaKind: 'tv' },
+        password: '', cleanupOnSuccess: true,
+      },
+    })).resolves.toMatchObject({
+      ok: false, error: { message: 'Gli host Segui non corrispondono agli host Quick Workflow.' },
     });
   });
 
