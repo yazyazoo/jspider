@@ -123,8 +123,12 @@ function readDocument(document: Document, value: string): PageSnapshot {
       key, packageName: cards.length ? `${info.title}${info.year ? ` (${info.year})` : ''} — ${label}` : raw,
       articleUrl: sourceUrl, articleId, password: password(card) || commonPassword,
       links: [...new Set(directLinks)], collectors: [...new Set(collectors)],
-      unsupportedCollectors, linksLoaded: !articleLocked || cards.length > 0, technical,
-      ...(!cards.length && articleLocked ? { locked: true } : {}),
+      unsupportedCollectors,
+      linksLoaded: !articleLocked || cards.length > 0 || directLinks.length > 0 || collectors.length > 0,
+      technical,
+      ...(!cards.length && articleLocked && directLinks.length === 0 && collectors.length === 0
+        ? { locked: true }
+        : {}),
       ...(info.seasons.length === 1 ? { season: info.seasons[0]!, technicalSample: true } : {}),
     };
   });

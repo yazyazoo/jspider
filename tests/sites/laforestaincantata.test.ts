@@ -120,6 +120,45 @@ describe('La Foresta adapter', () => {
     expect(snapshot.variants).toHaveLength(1);
     expect(snapshot.variants[0]?.locked).toBe(true);
   });
+
+  it('treats a normal article as already unlocked when direct links exist beside the thanks widget', async () => {
+    const unlockedDocument = new DOMParser().parseFromString(
+      `<meta property="og:title" content="The Traitors Italy - Stagione 1 (2025) WEB-DL 1080p">
+       <div id="full-story">
+         <div id="thx"><a onclick="tanksForNews(471729)">Ringrazia</a></div>
+         <div id="copialinkattivi" hidden>
+           <textarea>https://filestore.me/example-episode.rar</textarea>
+         </div>
+       </div>`,
+      'text/html',
+    );
+
+    const snapshot = laForestaAdapter.readPage(unlockedDocument, 'https://laforestaincantata.org/index.php?newsid=471729');
+
+    expect(snapshot.thanksMode).toBe('selection');
+    expect(snapshot.variants).toHaveLength(1);
+    expect(snapshot.variants[0]?.locked).toBeFalsy();
+    expect(snapshot.variants[0]?.linksLoaded).toBe(true);
+    expect(snapshot.variants[0]?.links).toEqual(['https://filestore.me/example-episode.rar']);
+
+    const fetchMock = vi.fn(async (_url: string, _options?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      text: async () => unlockedDocument.documentElement.outerHTML,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await laForestaAdapter.thankSelected?.(
+      unlockedDocument,
+      'https://laforestaincantata.org/index.php?newsid=471729',
+      [snapshot.variants[0]!.key],
+    );
+
+    expect(result?.thanks).toMatchObject({ thanked: [], already: [snapshot.variants[0]!.key], failed: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.method).not.toBe('POST');
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('resolveLfiCrypt', () => {
