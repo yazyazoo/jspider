@@ -330,9 +330,9 @@ ${value}
         links: [...new Set(directLinks)],
         collectors: [...new Set(collectors)],
         unsupportedCollectors,
-        linksLoaded: !articleLocked || cards.length > 0,
+        linksLoaded: !articleLocked || cards.length > 0 || directLinks.length > 0 || collectors.length > 0,
         technical,
-        ...!cards.length && articleLocked ? { locked: true } : {},
+        ...!cards.length && articleLocked && directLinks.length === 0 && collectors.length === 0 ? { locked: true } : {},
         ...info.seasons.length === 1 ? { season: info.seasons[0], technicalSample: true } : {}
       };
     });
