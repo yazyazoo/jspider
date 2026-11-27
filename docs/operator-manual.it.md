@@ -175,6 +175,13 @@ nel proprio file JSON storico.
 
 Quick Workflow è il percorso semplificato predefinito.
 
+L’esecuzione apre una scheda JSpider dedicata in secondo piano. Mantienila aperta
+fino al completamento: attende il controllo link di JD anche per diversi minuti
+e prosegue con Create e Start. Puoi chiudere la sidebar durante l’attesa. Il
+risultato rimane nella scheda e nel log JSON. Se chiudi o ricarichi la scheda di
+esecuzione, JSpider non reinvia automaticamente i link: verifica prima lo stato
+di package e workflow nella WebUI TaskFlow.
+
 1. Seleziona un **Preset TaskFlow**. Sotto il selettore appare la sequenza task.
 2. Controlla **Autodownload** e **Cleanup**.
 3. Fai clic una sola volta su **Quick Workflow**.

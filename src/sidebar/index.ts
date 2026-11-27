@@ -1,3 +1,4 @@
+import { runInWorkflowTab } from '../workflow-runner/client';
 import {
   normalizeWorkflowName,
   requireQuickWorkflowPreset,
@@ -837,7 +838,7 @@ element('quick-workflow').addEventListener('click', () => {
     status(autodownload
       ? 'Quick Workflow: Submission → Create → Start in corso. Non ripetere l’invio.'
       : 'Submission al LinkGrabber in corso. Non ripetere l’invio.');
-    const result = await background<{
+    const result = await runInWorkflowTab<{
       submissionOnly: boolean;
       submission: { outcomes: unknown[] };
       createdWorkflow: { id: string } | null;
@@ -872,7 +873,7 @@ element('load-packages').addEventListener('click', () => {
     createMode = lockCreateMode(createMode);
     renderCreateState();
     status('Caricamento package su JD in corso. Non ripetere l’invio.');
-    const submission = await background<{
+    const submission = await runInWorkflowTab<{
       taskflowIds: string[];
       outcomes: unknown[];
     }>('taskflow.loadPackages', {

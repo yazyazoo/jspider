@@ -1,3 +1,37 @@
+// src/workflow-runner/jobs.ts
+var JOB_PREFIX = "jspider.workflowJob.";
+
+// src/workflow-runner/client.ts
+async function runInWorkflowTab(action, data) {
+  const id = crypto.randomUUID();
+  const key = JOB_PREFIX + id;
+  const job = {
+    id,
+    state: "pending",
+    request: { target: "background", action, ...data }
+  };
+  await chrome.storage.local.set({ [key]: job });
+  const tab = await chrome.tabs.create({
+    url: chrome.runtime.getURL(`workflow-runner.html#${id}`),
+    active: false
+  });
+  if (tab.id !== void 0) await chrome.tabs.update(tab.id, { autoDiscardable: false });
+  while (true) {
+    const current = (await chrome.storage.local.get(key))[key];
+    if (current?.state === "succeeded") return current.result;
+    if (current?.state === "failed") {
+      throw Object.assign(new Error(String(current.error?.message ?? "Quick Workflow non riuscito.")), current.error);
+    }
+    if (tab.id === void 0) throw new Error("Scheda di esecuzione JSpider non disponibile.");
+    try {
+      await chrome.tabs.get(tab.id);
+    } catch {
+      throw new Error("Scheda di esecuzione chiusa. TaskFlow potrebbe avere gi\xE0 ricevuto i package: verifica nella WebUI prima di riprovare.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1e3));
+  }
+}
+
 // src/domain/archive-links.ts
 var ARCHIVE_HOSTS = ["filestore.me", "terabytez.org"];
 function normalizeArchiveUrl(value) {
@@ -2125,7 +2159,7 @@ element("quick-workflow").addEventListener("click", () => {
     createMode = lockCreateMode(createMode);
     renderCreateState();
     status(autodownload ? "Quick Workflow: Submission \u2192 Create \u2192 Start in corso. Non ripetere l\u2019invio." : "Submission al LinkGrabber in corso. Non ripetere l\u2019invio.");
-    const result = await background("taskflow.quickWorkflow", {
+    const result = await runInWorkflowTab("taskflow.quickWorkflow", {
       variants,
       hosts,
       autodownload,
@@ -2155,7 +2189,7 @@ element("load-packages").addEventListener("click", () => {
     createMode = lockCreateMode(createMode);
     renderCreateState();
     status("Caricamento package su JD in corso. Non ripetere l\u2019invio.");
-    const submission = await background("taskflow.loadPackages", {
+    const submission = await runInWorkflowTab("taskflow.loadPackages", {
       variants,
       hosts
     });

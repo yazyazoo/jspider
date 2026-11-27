@@ -416,33 +416,6 @@ async function updateSettings(patch) {
   return settingsSummary();
 }
 
-// src/background/sidepanel.ts
-function isRecord4(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-function isSupportedOverlayUrl(value) {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.port || url.username || url.password) return false;
-    if (url.hostname === "titanhd.space") return /^\/catalogo\/\d+\/?$/.test(url.pathname);
-    return url.hostname === "laforestaincantata.org" && url.pathname === "/index.php" && url.searchParams.getAll("newsid").length === 1 && /^[1-9]\d*$/.test(url.searchParams.get("newsid") ?? "");
-  } catch {
-    return false;
-  }
-}
-async function handleActionClick(tab, dependencies) {
-  if (tab.id === void 0 || !tab.url || !isSupportedOverlayUrl(tab.url)) return false;
-  try {
-    const response = await dependencies.sendMessage(tab.id, {
-      target: "content",
-      action: "overlay.toggle"
-    });
-    return isRecord4(response) && response.ok === true;
-  } catch {
-    return false;
-  }
-}
-
 // src/background/page-bridge.ts
 async function forwardPageMessage(ownerTabId, request2, sendMessage) {
   if (!Number.isInteger(ownerTabId)) {
@@ -476,7 +449,7 @@ var TaskFlowHttpError = class extends Error {
     this.response = response;
   }
 };
-function isRecord5(value) {
+function isRecord4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function safeNetworkError(reason, token) {
@@ -516,7 +489,7 @@ var TaskFlowClient = class {
       throw new TaskFlowHttpError(response.status, "client.invalid_json", "TaskFlow ha restituito JSON non valido.");
     }
     if (!response.ok) {
-      const error = isRecord5(body) && isRecord5(body.error) ? body.error : {};
+      const error = isRecord4(body) && isRecord4(body.error) ? body.error : {};
       throw new TaskFlowHttpError(
         response.status,
         typeof error.code === "string" ? error.code : "api.request_failed",
@@ -529,8 +502,8 @@ var TaskFlowClient = class {
   async discoverJDownloaderIntegration() {
     const raw = await this.#request("/api/v1/integrations");
     if (!Array.isArray(raw)) throw new Error("Elenco integrazioni TaskFlow non valido.");
-    const match = raw.find((item2) => isRecord5(item2) && item2.type === "jdownloader" && item2.enabled !== false && typeof item2.id === "string" && item2.id.length > 0);
-    if (!isRecord5(match) || typeof match.id !== "string") {
+    const match = raw.find((item2) => isRecord4(item2) && item2.type === "jdownloader" && item2.enabled !== false && typeof item2.id === "string" && item2.id.length > 0);
+    if (!isRecord4(match) || typeof match.id !== "string") {
       throw new Error("Nessuna integrazione JDownloader abilitata in TaskFlow.");
     }
     return match.id;
@@ -549,7 +522,7 @@ var TaskFlowClient = class {
       method: "POST",
       body: JSON.stringify(payload)
     });
-    if (!isRecord5(raw) || typeof raw.id !== "string" || !raw.id) {
+    if (!isRecord4(raw) || typeof raw.id !== "string" || !raw.id) {
       throw Object.assign(new Error("Risposta Create di TaskFlow non valida."), { response: raw });
     }
     return raw;
@@ -558,7 +531,7 @@ var TaskFlowClient = class {
     const raw = await this.#request(`/api/v1/workflows/${encodeURIComponent(workflowId)}/start`, {
       method: "POST"
     });
-    if (!isRecord5(raw) || typeof raw.id !== "string" || !raw.id) {
+    if (!isRecord4(raw) || typeof raw.id !== "string" || !raw.id) {
       throw Object.assign(new Error("Risposta Start di TaskFlow non valida."), { response: raw });
     }
     return raw;
@@ -664,7 +637,7 @@ function resolveEmbyPresence(items, input) {
 }
 
 // src/background/emby-client.ts
-function isRecord6(value) {
+function isRecord5(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function normalizeBaseUrl(value) {
@@ -673,9 +646,9 @@ function normalizeBaseUrl(value) {
   return url.toString().replace(/\/$/, "");
 }
 function item(value) {
-  if (!isRecord6(value)) return null;
-  const providerIds = isRecord6(value.ProviderIds) ? Object.fromEntries(Object.entries(value.ProviderIds).filter((entry) => typeof entry[1] === "string")) : {};
-  const mediaSources = Array.isArray(value.MediaSources) ? value.MediaSources.flatMap((source) => isRecord6(source) && typeof source.Path === "string" ? [{ path: source.Path }] : []) : [];
+  if (!isRecord5(value)) return null;
+  const providerIds = isRecord5(value.ProviderIds) ? Object.fromEntries(Object.entries(value.ProviderIds).filter((entry) => typeof entry[1] === "string")) : {};
+  const mediaSources = Array.isArray(value.MediaSources) ? value.MediaSources.flatMap((source) => isRecord5(source) && typeof source.Path === "string" ? [{ path: source.Path }] : []) : [];
   return {
     id: typeof value.Id === "string" ? value.Id : "",
     name: typeof value.Name === "string" ? value.Name : "",
@@ -738,7 +711,7 @@ var EmbyClient = class {
     } catch {
       throw new Error("Risposta Emby non valida.");
     }
-    if (!isRecord6(value) || !Array.isArray(value.Items) || typeof value.TotalRecordCount !== "number") {
+    if (!isRecord5(value) || !Array.isArray(value.Items) || typeof value.TotalRecordCount !== "number") {
       throw new Error("Risposta Emby non valida.");
     }
     const items = value.Items.map(item).filter((entry) => entry !== null);
@@ -1156,11 +1129,11 @@ function parseFollowLogFilename(filename) {
 function sameFollowChain(left, right) {
   return left.mediaKind === right.mediaKind && left.tmdbId === right.tmdbId && left.season === right.season && normalizeFollowHosts(left.hosts).join("|") === normalizeFollowHosts(right.hosts).join("|");
 }
-function isRecord7(value) {
+function isRecord6(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function requireLogEntries(document) {
-  if (!isRecord7(document) || typeof document.runId !== "string" || typeof document.workflowName !== "string" || typeof document.fileName !== "string" || typeof document.startedAt !== "string" || typeof document.updatedAt !== "string" || !Array.isArray(document.entries) || document.entries.some((entry) => !isRecord7(entry) || typeof entry.phase !== "string" || typeof entry.kind !== "string")) {
+  if (!isRecord6(document) || typeof document.runId !== "string" || typeof document.workflowName !== "string" || typeof document.fileName !== "string" || typeof document.startedAt !== "string" || typeof document.updatedAt !== "string" || !Array.isArray(document.entries) || document.entries.some((entry) => !isRecord6(entry) || typeof entry.phase !== "string" || typeof entry.kind !== "string")) {
     throw new Error("Log Segui non valido.");
   }
   return document.entries;
@@ -1175,11 +1148,11 @@ function readProcessedFollowLinks(documents) {
     const started = hasSuccessfulFollowStart(document);
     if (!started) continue;
     const submission = entries.find((entry) => entry.phase === "submission" && entry.kind === "request");
-    if (!submission || !isRecord7(submission.payload) || !Array.isArray(submission.payload.packages)) {
+    if (!submission || !isRecord6(submission.payload) || !Array.isArray(submission.payload.packages)) {
       throw new Error("Submission mancante nel log Segui riuscito.");
     }
     for (const item2 of submission.payload.packages) {
-      if (!isRecord7(item2) || !Array.isArray(item2.links)) {
+      if (!isRecord6(item2) || !Array.isArray(item2.links)) {
         throw new Error("Submission non valida nel log Segui riuscito.");
       }
       for (const rawLink of item2.links) {
@@ -1516,7 +1489,7 @@ async function handleQuickWorkflowLogAction(action, store) {
   return void 0;
 }
 
-// src/background/index.ts
+// src/background/application.ts
 var logDirectory = new LogDirectoryRepository();
 var followLogHistory = new FollowLogHistoryReader(logDirectory);
 var quickWorkflowLog = new QuickWorkflowLogStore({
@@ -1524,11 +1497,6 @@ var quickWorkflowLog = new QuickWorkflowLogStore({
   set: (items) => chrome.storage.local.set(items),
   remove: (key) => chrome.storage.local.remove(key)
 }, void 0, void 0, new QuickWorkflowFileWriter(logDirectory));
-chrome.action.onClicked.addListener((tab) => {
-  void handleActionClick(tab, {
-    sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message)
-  });
-});
 function serializeError(reason) {
   if (reason instanceof SubmissionBatchError) {
     return { name: reason.name, message: reason.message, analysis: reason.analysis };
@@ -1545,11 +1513,11 @@ function serializeError(reason) {
   }
   return serialized;
 }
-function isRecord8(value) {
+function isRecord7(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function requireFollowContext(value) {
-  if (!isRecord8(value) || value.mediaKind !== "tv" || !Number.isSafeInteger(value.tmdbId) || Number(value.tmdbId) <= 0 || !Number.isSafeInteger(value.season) || Number(value.season) < 0 || typeof value.title !== "string" || !value.title.trim() || !Array.isArray(value.hosts)) {
+  if (!isRecord7(value) || value.mediaKind !== "tv" || !Number.isSafeInteger(value.tmdbId) || Number(value.tmdbId) <= 0 || !Number.isSafeInteger(value.season) || Number(value.season) < 0 || typeof value.title !== "string" || !value.title.trim() || !Array.isArray(value.hosts)) {
     throw new Error("Dati Segui stagione non validi.");
   }
   const rawHosts = value.hosts;
@@ -1566,7 +1534,7 @@ function requireFollowContext(value) {
   };
 }
 function requireFollowVariants(value, season) {
-  if (!Array.isArray(value) || !value.length || value.some((variant) => !isRecord8(variant) || variant.season !== season)) {
+  if (!Array.isArray(value) || !value.length || value.some((variant) => !isRecord7(variant) || variant.season !== season)) {
     throw new Error("Le versioni Segui devono appartenere a una sola stagione.");
   }
   return value;
@@ -1582,8 +1550,8 @@ function requireQuickWorkflowFollow(message) {
   if (!Array.isArray(message.hosts) || quickHosts.length !== message.hosts.length || !sameFollowChain(follow, { ...follow, hosts: quickHosts })) {
     throw new Error("Gli host Segui non corrispondono agli host Quick Workflow.");
   }
-  const workflow = isRecord8(message.workflow) ? message.workflow : null;
-  const metadata = workflow && isRecord8(workflow.metadata) ? workflow.metadata : null;
+  const workflow = isRecord7(message.workflow) ? message.workflow : null;
+  const metadata = workflow && isRecord7(workflow.metadata) ? workflow.metadata : null;
   if (!metadata || metadata.mode !== "validated" || metadata.mediaKind !== "tv" || metadata.id !== follow.tmdbId || !variants.length) {
     throw new Error("Segui stagione richiede una serie TMDB validata.");
   }
@@ -1722,8 +1690,46 @@ async function handle(message, sender) {
   }
   throw new Error("Azione background non supportata.");
 }
+
+// src/background/sidepanel.ts
+function isRecord8(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function isSupportedOverlayUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.port || url.username || url.password) return false;
+    if (url.hostname === "titanhd.space") return /^\/catalogo\/\d+\/?$/.test(url.pathname);
+    return url.hostname === "laforestaincantata.org" && url.pathname === "/index.php" && url.searchParams.getAll("newsid").length === 1 && /^[1-9]\d*$/.test(url.searchParams.get("newsid") ?? "");
+  } catch {
+    return false;
+  }
+}
+async function handleActionClick(tab, dependencies) {
+  if (tab.id === void 0 || !tab.url || !isSupportedOverlayUrl(tab.url)) return false;
+  try {
+    const response = await dependencies.sendMessage(tab.id, {
+      target: "content",
+      action: "overlay.toggle"
+    });
+    return isRecord8(response) && response.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+// src/background/index.ts
+chrome.action.onClicked.addListener((tab) => {
+  void handleActionClick(tab, {
+    sendMessage: (tabId, message) => chrome.tabs.sendMessage(tabId, message)
+  });
+});
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== "background") return void 0;
+  if (message.action === "taskflow.quickWorkflow" || message.action === "taskflow.loadPackages") {
+    sendResponse({ ok: false, error: { message: "Avvia questa operazione dalla scheda di esecuzione JSpider." } });
+    return false;
+  }
   void handle(message, sender).then(
     (data) => sendResponse({ ok: true, data }),
     (reason) => sendResponse({ ok: false, error: serializeError(reason) })

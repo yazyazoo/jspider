@@ -15,6 +15,11 @@ await mkdir(output, { recursive: true });
 
 await Promise.all([
   build({
+    entryPoints: [resolve(root, 'src/workflow-runner/index.ts')],
+    outfile: resolve(output, 'workflow-runner.js'), bundle: true, format: 'esm',
+    platform: 'browser', target: 'chrome120', sourcemap: false,
+  }),
+  build({
     entryPoints: [resolve(root, 'src/background/index.ts')],
     outfile: resolve(output, 'background.js'), bundle: true, format: 'esm',
     platform: 'browser', target: 'chrome120', sourcemap: false,
@@ -37,6 +42,7 @@ await Promise.all([
 ]);
 
 await Promise.all([
+  copyFile(resolve(root, 'src/workflow-runner/workflow-runner.html'), resolve(output, 'workflow-runner.html')),
   writeFile(resolve(output, 'manifest.json'), `${JSON.stringify(extensionManifest, null, 2)}\n`),
   copyFile(resolve(root, 'config.example.json'), resolve(output, 'config.example.json')),
   copyFile(resolve(root, 'src/sidebar/sidebar.html'), resolve(output, 'sidebar.html')),

@@ -45,6 +45,11 @@ describe('background Quick Workflow log actions', () => {
   });
 
   async function send(action: string, data: Record<string, unknown> = {}): Promise<unknown> {
+    if (action === 'taskflow.quickWorkflow' || action === 'taskflow.loadPackages') {
+      const { handle, serializeError } = await import('../../src/background/application');
+      try { return { ok: true, data: await handle({ target: 'background', action, ...data }, {}) }; }
+      catch (reason) { return { ok: false, error: serializeError(reason) }; }
+    }
     return new Promise((resolve) => {
       expect(listener?.({ target: 'background', action, ...data }, {}, resolve)).toBe(true);
     });
@@ -55,6 +60,15 @@ describe('background Quick Workflow log actions', () => {
       .resolves.toEqual({ ok: true, data: null });
     await expect(send('taskflow.quickWorkflowLog.clear'))
       .resolves.toEqual({ ok: true, data: { cleared: true } });
+  });
+
+  it('rejects long operations on the service worker message channel', () => {
+    const reply = vi.fn();
+    expect(listener?.({ target: 'background', action: 'taskflow.quickWorkflow' }, {}, reply)).toBe(false);
+    expect(reply).toHaveBeenCalledWith({ ok: false, error: expect.objectContaining({
+      message: expect.stringContaining('scheda di esecuzione'),
+    }) });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('continues Quick Workflow when local diagnostic storage is unavailable', async () => {

@@ -170,6 +170,13 @@ page. Every run is then mirrored progressively to its own JSON history file.
 
 Quick Workflow is the default simplified path.
 
+Execution opens a dedicated JSpider tab in the background. Keep it open until
+completion: it waits for JD link checks, even for several minutes, then runs
+Create and Start. You may close the sidebar while waiting. The result remains
+in the execution tab and JSON log. Closing or reloading the execution tab never
+automatically resubmits links; check packages and workflows in the TaskFlow WebUI
+before retrying.
+
 1. Select a **Preset TaskFlow**. Its task sequence is displayed below the
    selector.
 2. Review **Autodownload** and **Cleanup**.
