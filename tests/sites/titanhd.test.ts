@@ -1,26 +1,21 @@
 // @vitest-environment jsdom
+/// <reference types="vite/client" />
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { titanHdAdapter } from '../../src/sites/titanhd';
+import { titanHdAdapter } from '../../src/sites/titanhd/article';
+import { titanHdModule } from '../../src/sites/titanhd/module';
+import articleFixture from '../fixtures/sites/titanhd/article.html?raw';
 
 beforeEach(() => {
-  document.body.innerHTML = `<h1>L'isola dei ricordi</h1>
-    <script type="application/ld+json">[{"@type":"Movie","name":"L'isola dei ricordi","datePublished":"2026-09-10"}]</script>
-    <a href="https://imdb.com/title/tt36583977/">IMDb</a>
-    <button id="tab-a">4K WEB-DL</button>
-    <div data-rel-panel="0" data-version-key="4k" aria-labelledby="tab-a">
-      <pre>General\nDuration : 1 h 40 min\nVideo\nFormat : HEVC\nBit rate : 20 Mb/s</pre>
-      <div data-hl data-hl-key="4k" data-hl-package="Film 2160p" data-hl-password="RAR-PASS">
-        <div data-hl-links="https://filestore.me/a/film.part1.rar&#10;https://terabytez.org/b/film.part1.rar"></div>
-      </div>
-    </div>
-    <button id="tab-b">1080p H264</button>
-    <div data-rel-panel="1" data-version-key="1080" aria-labelledby="tab-b">
-      <pre>General\nDuration : 1 h 40 min\nVideo\nFormat : AVC\nBit rate : 9 Mb/s</pre>
-      <div data-locked="1"></div>
-    </div>`;
+  document.body.innerHTML = articleFixture;
 });
 
 describe('TitanHD adapter', () => {
+  it('exposes the article adapter through its site module', () => {
+    expect(titanHdModule.definition.siteId).toBe('titanhd');
+    expect(titanHdModule.article).toBe(titanHdAdapter);
+    expect(titanHdModule.search).toBeUndefined();
+  });
+
   it('matches only exact HTTPS title-page URLs', () => {
     expect(titanHdAdapter.matches('https://titanhd.space/catalogo/14481')).toBe(true);
     expect(titanHdAdapter.normalizeUrl('https://titanhd.space/catalogo/14481/#links'))

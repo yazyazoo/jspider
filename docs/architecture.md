@@ -19,10 +19,36 @@ Supported page
 
 ## Page and scraper layer
 
-`src/sites/` contains selective TitanHD and La Foresta Incantata extraction.
-The content script reads the current title, IMDb reference, technical metadata,
-release versions, archive links, and thank/unlock capabilities. It also owns the
-portable in-page overlay used by Chromium browsers.
+`src/sites/catalog.json` is the declarative source for site IDs, exact origins,
+page match patterns, and available capabilities. Each supported site lives in
+its own folder and exports a `SiteModule`:
+
+```text
+src/sites/
+  catalog.json
+  contracts.ts
+  registry.ts
+  titanhd/
+    module.ts
+    article.ts
+  laforestaincantata/
+    module.ts
+    article.ts
+    technical.ts
+    lficrypt.ts
+```
+
+The content script knows only the common registry and `ArticleAdapter`
+contract. An adapter reads the current title, IMDb reference, technical
+metadata, release versions, archive links, and thank/unlock capabilities. The
+registry rejects zero or ambiguous matches instead of selecting an adapter by
+order. Exact origin checks remain inside each adapter as a second boundary.
+
+`SearchProvider` is an optional contract reserved for a future MultiSearch
+frontend. Neither current module implements it: JSpider still works only on the
+supported page already open, and search never shares the article action path.
+The content script also owns the portable in-page overlay used by Chromium
+browsers.
 
 ## Sidebar layer
 
@@ -77,3 +103,9 @@ Source, tests, documentation, and build scripts live in this repository.
 `dist/` is generated and tracked so a clone is immediately loadable. Local
 configuration remains ignored. GitHub Release ZIP files contain only the
 runtime extension and placeholder configuration example.
+
+The source `manifest.json` contains general extension and API settings. During
+the build, `scripts/site-manifest.mjs` validates the catalog and generates site
+host permissions, content-script matches, and web-accessible-resource matches
+for `dist/manifest.json`. Invalid, duplicate, or cross-origin patterns stop the
+build.

@@ -4,15 +4,18 @@
   "version": "0.1.0",
   "minimum_chrome_version": "120",
   "description": "Seleziona versioni, valida TMDB e crea workflow TaskFlow.",
-  "permissions": ["storage", "tabs"],
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
   "host_permissions": [
-    "https://titanhd.space/*",
-    "https://laforestaincantata.org/*",
     "https://api.themoviedb.org/*",
     "https://api.mdblist.com/*",
     "https://apis.justwatch.com/*",
     "https://www.omdbapi.com/*",
-    "https://taskflow.redprimrose.mov/*"
+    "https://taskflow.redprimrose.mov/*",
+    "https://titanhd.space/*",
+    "https://laforestaincantata.org/*"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -28,22 +31,28 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://titanhd.space/catalogo/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://laforestaincantata.org/index.php*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://titanhd.space/catalogo/*",
+        "https://laforestaincantata.org/index.php*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src https: http: wss: ws:; img-src 'self' https://image.tmdb.org data:"
   },
-  "web_accessible_resources": [{
-    "resources": ["sidebar.html"],
-    "matches": ["https://titanhd.space/*", "https://laforestaincantata.org/*"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sidebar.html"
+      ],
+      "matches": [
+        "https://titanhd.space/*",
+        "https://laforestaincantata.org/*"
+      ]
+    }
+  ]
 }
-

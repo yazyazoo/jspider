@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { createExtensionManifest } from '../../scripts/site-manifest.mjs';
 
 function sidebar() {
   const html = readFileSync(new URL('../../src/sidebar/sidebar.html', import.meta.url), 'utf8');
@@ -80,8 +81,12 @@ describe('sidebar fallback action', () => {
   });
 
   it('grants the background client access only to the MDBList API origin', () => {
-    const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
+    const baseManifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
+    const catalog = JSON.parse(readFileSync(new URL('../../src/sites/catalog.json', import.meta.url), 'utf8'));
+    const manifest = createExtensionManifest(baseManifest, catalog);
     expect(manifest.host_permissions).toContain('https://api.mdblist.com/*');
+    expect(manifest.host_permissions).toContain('https://titanhd.space/*');
+    expect(manifest.host_permissions).toContain('https://laforestaincantata.org/*');
     expect(manifest.host_permissions).not.toContain('https://www.rottentomatoes.com/*');
   });
 

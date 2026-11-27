@@ -1,10 +1,15 @@
 import { build } from 'esbuild';
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { copyLocalConfigIfPresent, copyRatingAssets } from './distribution.mjs';
+import { createExtensionManifest } from './site-manifest.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'dist');
+const baseManifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
+const siteCatalog = JSON.parse(await readFile(resolve(root, 'src/sites/catalog.json'), 'utf8'));
+const extensionManifest = createExtensionManifest(baseManifest, siteCatalog);
+
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 
@@ -32,7 +37,7 @@ await Promise.all([
 ]);
 
 await Promise.all([
-  copyFile(resolve(root, 'manifest.json'), resolve(output, 'manifest.json')),
+  writeFile(resolve(output, 'manifest.json'), `${JSON.stringify(extensionManifest, null, 2)}\n`),
   copyFile(resolve(root, 'config.example.json'), resolve(output, 'config.example.json')),
   copyFile(resolve(root, 'src/sidebar/sidebar.html'), resolve(output, 'sidebar.html')),
   copyFile(resolve(root, 'src/sidebar/sidebar.css'), resolve(output, 'sidebar.css')),

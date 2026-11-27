@@ -6,8 +6,6 @@
   "description": "Seleziona versioni, valida TMDB e crea workflow TaskFlow.",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
-    "https://titanhd.space/*",
-    "https://laforestaincantata.org/*",
     "https://api.themoviedb.org/*",
     "https://api.mdblist.com/*",
     "https://apis.justwatch.com/*",
@@ -28,12 +26,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://titanhd.space/catalogo/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://laforestaincantata.org/index.php*"],
+      "matches": [],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
@@ -43,7 +36,7 @@
   },
   "web_accessible_resources": [{
     "resources": ["sidebar.html"],
-    "matches": ["https://titanhd.space/*", "https://laforestaincantata.org/*"]
+    "matches": []
   }]
 }
 

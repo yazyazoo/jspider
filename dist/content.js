@@ -1,5 +1,39 @@
 "use strict";
 (() => {
+  // src/sites/catalog.json
+  var catalog_default = [
+    {
+      siteId: "titanhd",
+      siteName: "TitanHD",
+      origins: ["https://titanhd.space"],
+      articleMatches: ["https://titanhd.space/catalogo/*"],
+      searchMatches: [],
+      capabilities: {
+        article: true,
+        search: false
+      }
+    },
+    {
+      siteId: "laforestaincantata",
+      siteName: "La Foresta Incantata",
+      origins: ["https://laforestaincantata.org"],
+      articleMatches: ["https://laforestaincantata.org/index.php*"],
+      searchMatches: [],
+      capabilities: {
+        article: true,
+        search: false
+      }
+    }
+  ];
+
+  // src/sites/catalog.ts
+  var siteDefinitions = catalog_default;
+  function requireSiteDefinition(siteId) {
+    const definition = siteDefinitions.find((candidate) => candidate.siteId === siteId);
+    if (!definition) throw new Error(`Unknown site definition: ${siteId}`);
+    return definition;
+  }
+
   // src/domain/archive-links.ts
   var ARCHIVE_HOSTS = ["filestore.me", "terabytez.org"];
   function normalizeArchiveUrl(value) {
@@ -16,6 +50,29 @@
     } catch {
       return null;
     }
+  }
+
+  // src/sites/laforestaincantata/lficrypt.ts
+  function normalizeLfiCryptUrl(value) {
+    if (typeof value !== "string") return null;
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:" || !["lficrypt.org", "www.lficrypt.org"].includes(url.hostname) || url.port || url.username || url.password || !/^\/[a-z0-9]{6,32}\.html$/i.test(url.pathname) || url.search) return null;
+      return `https://lficrypt.org${url.pathname}`;
+    } catch {
+      return null;
+    }
+  }
+  async function resolveLfiCrypt(value, request) {
+    const collectorUrl = normalizeLfiCryptUrl(value);
+    if (!collectorUrl) throw new Error("Raccoglitore LFiCrypt non valido.");
+    const raw = await request(collectorUrl);
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw) || raw.ok !== true || !Array.isArray(raw.links) || raw.links.length > 1e4) {
+      throw new Error("LFiCrypt non ha restituito una lista di link valida.");
+    }
+    const links = [...new Set(raw.links.map(normalizeArchiveUrl).filter((link) => link !== null))];
+    if (!links.length) throw new Error("Nessun link Filestore o Terabytez disponibile nel raccoglitore LFiCrypt.");
+    return links;
   }
 
   // src/domain/technical.ts
@@ -148,7 +205,7 @@
     };
   }
 
-  // src/sites/lfi-technical.ts
+  // src/sites/laforestaincantata/technical.ts
   function domText(node) {
     if (!node) return "";
     if (node.nodeType === Node.TEXT_NODE) return node.nodeValue ?? "";
@@ -221,31 +278,9 @@ ${value}
     };
   }
 
-  // src/sites/lficrypt.ts
-  function normalizeLfiCryptUrl(value) {
-    if (typeof value !== "string") return null;
-    try {
-      const url = new URL(value);
-      if (url.protocol !== "https:" || !["lficrypt.org", "www.lficrypt.org"].includes(url.hostname) || url.port || url.username || url.password || !/^\/[a-z0-9]{6,32}\.html$/i.test(url.pathname) || url.search) return null;
-      return `https://lficrypt.org${url.pathname}`;
-    } catch {
-      return null;
-    }
-  }
-  async function resolveLfiCrypt(value, request) {
-    const collectorUrl = normalizeLfiCryptUrl(value);
-    if (!collectorUrl) throw new Error("Raccoglitore LFiCrypt non valido.");
-    const raw = await request(collectorUrl);
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw) || raw.ok !== true || !Array.isArray(raw.links) || raw.links.length > 1e4) {
-      throw new Error("LFiCrypt non ha restituito una lista di link valida.");
-    }
-    const links = [...new Set(raw.links.map(normalizeArchiveUrl).filter((link) => link !== null))];
-    if (!links.length) throw new Error("Nessun link Filestore o Terabytez disponibile nel raccoglitore LFiCrypt.");
-    return links;
-  }
-
-  // src/sites/laforestaincantata.ts
+  // src/sites/laforestaincantata/article.ts
   var ORIGIN = "https://laforestaincantata.org";
+  var siteDefinition = requireSiteDefinition("laforestaincantata");
   var states = /* @__PURE__ */ new WeakMap();
   var clean = (value) => String(value ?? "").replace(/[\t \u00a0]+/g, " ").trim();
   var normalized = (value) => clean(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -560,9 +595,9 @@ ${value}
     return { context: readPage(document2, value), thanks: { thanked, already, failed, replacements } };
   }
   var laForestaAdapter = {
-    id: "laforestaincantata",
-    name: "La Foresta Incantata",
-    patterns: [`${ORIGIN}/index.php*`],
+    id: siteDefinition.siteId,
+    name: siteDefinition.siteName,
+    patterns: [...siteDefinition.articleMatches],
     matches(value) {
       try {
         return new URL(value).protocol === "https:" && Boolean(normalizeUrl(value));
@@ -576,7 +611,14 @@ ${value}
     thankSelected
   };
 
-  // src/sites/titanhd.ts
+  // src/sites/laforestaincantata/module.ts
+  var laForestaModule = {
+    definition: requireSiteDefinition("laforestaincantata"),
+    article: laForestaAdapter
+  };
+
+  // src/sites/titanhd/article.ts
+  var siteDefinition2 = requireSiteDefinition("titanhd");
   function pageUrl(value) {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.hostname !== "titanhd.space" || url.port || url.username || url.password || !/^\/catalogo\/\d+\/?$/.test(url.pathname)) {
@@ -781,9 +823,9 @@ ${value}
     return { context: fresh.context, thanks: { thanked, already, failed } };
   }
   var titanHdAdapter = {
-    id: "titanhd",
-    name: "TitanHD",
-    patterns: ["https://titanhd.space/catalogo/*"],
+    id: siteDefinition2.siteId,
+    name: siteDefinition2.siteName,
+    patterns: [...siteDefinition2.articleMatches],
     matches(value) {
       try {
         pageUrl(value);
@@ -797,12 +839,18 @@ ${value}
     thankSelected: thankSelected2
   };
 
+  // src/sites/titanhd/module.ts
+  var titanHdModule = {
+    definition: requireSiteDefinition("titanhd"),
+    article: titanHdAdapter
+  };
+
   // src/sites/registry.ts
-  var siteAdapters = [titanHdAdapter, laForestaAdapter];
-  function resolveSiteAdapter(url) {
-    const matches = siteAdapters.filter((adapter) => {
+  var siteModules = [titanHdModule, laForestaModule];
+  function resolveArticleModule(url, modules = siteModules) {
+    const matches = modules.filter((module) => {
       try {
-        return adapter.matches(url);
+        return module.article?.matches(url) === true;
       } catch {
         return false;
       }
@@ -883,7 +931,7 @@ ${value}
     }
   );
   async function handle(message) {
-    const adapter = resolveSiteAdapter(location.href);
+    const adapter = resolveContentArticle(location.href);
     if (!adapter) throw new Error("Questa pagina non \xE8 supportata da JSpider.");
     if (message.action === "overlay.toggle") return overlay.toggle();
     if (message.action === "overlay.status") return overlay.status();
@@ -896,6 +944,9 @@ ${value}
       return adapter.thankSelected(document, location.href, message.variantKeys ?? []);
     }
     throw new Error("Azione pagina non supportata.");
+  }
+  function resolveContentArticle(url) {
+    return resolveArticleModule(url)?.article ?? null;
   }
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.target !== "content") return void 0;

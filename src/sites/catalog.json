@@ -1,0 +1,24 @@
+[
+  {
+    "siteId": "titanhd",
+    "siteName": "TitanHD",
+    "origins": ["https://titanhd.space"],
+    "articleMatches": ["https://titanhd.space/catalogo/*"],
+    "searchMatches": [],
+    "capabilities": {
+      "article": true,
+      "search": false
+    }
+  },
+  {
+    "siteId": "laforestaincantata",
+    "siteName": "La Foresta Incantata",
+    "origins": ["https://laforestaincantata.org"],
+    "articleMatches": ["https://laforestaincantata.org/index.php*"],
+    "searchMatches": [],
+    "capabilities": {
+      "article": true,
+      "search": false
+    }
+  }
+]

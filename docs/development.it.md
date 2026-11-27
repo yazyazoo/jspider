@@ -27,6 +27,23 @@ npm run audit:legacy
 npm run build
 ```
 
+## Aggiungere un sito con schede supportate
+
+Il confine della release attuale è una singola pagina supportata già aperta in
+Chromium. Per aggiungere un sito senza legarlo alla sidebar:
+
+1. aggiungi origine HTTPS esatta e pattern articolo in `src/sites/catalog.json`;
+2. crea `src/sites/<site-id>/module.ts` e un `ArticleAdapter`;
+3. conserva parser e logica di sblocco specifici nella cartella del sito;
+4. aggiungi fixture HTML stabili e test caratterizzanti dell’adapter;
+5. registra il modulo e copri URL esatti, ostili e corrispondenze ambigue;
+6. esegui i test di catalogo/manifest e la verifica completa.
+
+La build proietta le voci del catalogo in `dist/manifest.json`: non duplicare
+manualmente le origini dei siti nel manifest sorgente. `SearchProvider` è una
+capacità opzionale riservata. Non aggiungere provider concreti prima del piano
+e dei test separati per MultiSearch.
+
 ## Aggiornare la WebUI TaskFlow incorporata
 
 Il pannello impostazioni può confrontare lo SHA-256 incorporato con il

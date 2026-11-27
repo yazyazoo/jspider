@@ -1,10 +1,12 @@
-import { normalizeArchiveUrl } from '../domain/archive-links';
-import type { MediaKind, PageSnapshot, ReleaseVariant } from '../domain/models';
-import { domText, parseLfiTechnical } from './lfi-technical';
+import { normalizeArchiveUrl } from '../../domain/archive-links';
+import type { MediaKind, PageSnapshot, ReleaseVariant } from '../../domain/models';
+import { requireSiteDefinition } from '../catalog';
+import type { ArticleAdapter, ThanksFailure, ThanksResult } from '../contracts';
 import { normalizeLfiCryptUrl, resolveLfiCrypt } from './lficrypt';
-import type { SiteAdapter, ThanksFailure, ThanksResult } from './types';
+import { domText, parseLfiTechnical } from './technical';
 
 const ORIGIN = 'https://laforestaincantata.org';
+const siteDefinition = requireSiteDefinition('laforestaincantata');
 
 interface Identity {
   title: string;
@@ -349,9 +351,10 @@ async function thankSelected(
   return { context: readPage(document, value), thanks: { thanked, already, failed, replacements } };
 }
 
-export const laForestaAdapter: SiteAdapter = {
-  id: 'laforestaincantata', name: 'La Foresta Incantata',
-  patterns: [`${ORIGIN}/index.php*`],
+export const laForestaAdapter: ArticleAdapter = {
+  id: siteDefinition.siteId,
+  name: siteDefinition.siteName,
+  patterns: [...siteDefinition.articleMatches],
   matches(value) {
     try { return new URL(value).protocol === 'https:' && Boolean(normalizeUrl(value)); }
     catch { return false; }

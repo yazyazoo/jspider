@@ -1,5 +1,5 @@
-import type { TechnicalInfo } from '../domain/models';
-import { parseQuantity, parseTechnicalReport, resolutionFromDimensions } from '../domain/technical';
+import type { TechnicalInfo } from '../../domain/models';
+import { parseQuantity, parseTechnicalReport, resolutionFromDimensions } from '../../domain/technical';
 
 export function domText(node: Node | null): string {
   if (!node) return '';

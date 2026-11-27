@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
+/// <reference types="vite/client" />
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveLfiCrypt } from '../../src/sites/lficrypt';
-import { laForestaAdapter } from '../../src/sites/laforestaincantata';
+import { laForestaAdapter } from '../../src/sites/laforestaincantata/article';
+import { resolveLfiCrypt } from '../../src/sites/laforestaincantata/lficrypt';
+import { laForestaModule } from '../../src/sites/laforestaincantata/module';
+import allCodingsFixture from '../fixtures/sites/laforestaincantata/all-codings.html?raw';
 
 const rootUrl = 'https://laforestaincantata.org/index.php?newsid=503997';
 
@@ -26,14 +29,16 @@ Bitrate (bs): 11904.867977 kbps
 Framerate: 24 fps`;
 
 beforeEach(() => {
-  document.head.innerHTML = '<meta property="og:title" content="Bone Keeper - Discesa negli inferi (2026) WebDL Tutte Le Codifiche Disponibili">';
-  document.body.innerHTML = `<div id="full-story">
-    ${versionCard('WebDL 1080p AVC', 'FIRST', 'https://lficrypt.org/C538F022EC.html', avinaptic)}
-    ${versionCard('WebDL 720p HEVC', '', 'https://filecrypt.cc/Container/ABC.html', 'General\nVideo\nFormat : HEVC\nWidth : 1280 pixels')}
-  </div><div id="lfi-similar-section"></div>`;
+  document.documentElement.innerHTML = allCodingsFixture;
 });
 
 describe('La Foresta adapter', () => {
+  it('exposes the article adapter through its site module', () => {
+    expect(laForestaModule.definition.siteId).toBe('laforestaincantata');
+    expect(laForestaModule.article).toBe(laForestaAdapter);
+    expect(laForestaModule.search).toBeUndefined();
+  });
+
   it('matches only exact article identities and canonicalizes HTTP links', () => {
     expect(laForestaAdapter.matches(rootUrl)).toBe(true);
     expect(laForestaAdapter.normalizeUrl('http://laforestaincantata.org/index.php?newsid=503997&utm=x#comments'))

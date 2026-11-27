@@ -57,6 +57,15 @@ describe('local distribution configuration', () => {
     expect(buildScript).toContain("log-directory.css");
   });
 
+  it('builds the distributed manifest from the declarative site catalog', async () => {
+    const buildScript = await readFile(new URL('../../scripts/build.mjs', import.meta.url), 'utf8');
+    expect(buildScript).toContain('createExtensionManifest');
+    expect(buildScript).toContain('src/sites/catalog.json');
+    expect(buildScript).not.toContain("copyFile(resolve(root, 'manifest.json')");
+    expect(buildScript.indexOf('createExtensionManifest(baseManifest, siteCatalog)'))
+      .toBeLessThan(buildScript.indexOf('rm(output'));
+  });
+
   it('publishes an MDBList placeholder without publishing a local key', async () => {
     const example = JSON.parse(await readFile(new URL('../../config.example.json', import.meta.url), 'utf8'));
     expect(example.mdblistApiKey).toBe('INSERISCI_API_KEY_MDBLIST');

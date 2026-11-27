@@ -48,6 +48,11 @@ as the unpacked extension; do not load the repository root. When root
 `config.local.json` exists, the local build copies it into `dist/`, but that
 local configuration remains ignored by Git.
 
+Supported sites are isolated under `src/sites/<site-id>/`. Their exact origins
+and page patterns are declared once in `src/sites/catalog.json`; the build
+validates that catalog and generates the site-specific parts of the distributed
+manifest. MultiSearch providers are intentionally not part of this release.
+
 JSpider embeds a reviewed TaskFlow WebUI revision so the prefilled TaskFlow
 Create branch remains compatible with Manifest V3. Settings can check whether
 a newer public component exists. To update it, double-click

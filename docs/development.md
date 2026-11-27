@@ -27,6 +27,23 @@ npm run audit:legacy
 npm run build
 ```
 
+## Add a supported article site
+
+The current release boundary is one supported page already open in Chromium.
+To add another site without coupling it to the sidebar:
+
+1. add its exact HTTPS origin and article patterns to `src/sites/catalog.json`;
+2. create `src/sites/<site-id>/module.ts` and an `ArticleAdapter`;
+3. keep site-only parsers and unlock logic inside that folder;
+4. add stable HTML fixtures and adapter characterization tests;
+5. register the module and cover exact, hostile, and ambiguous URL cases;
+6. run the catalog/manifest tests and the complete verification.
+
+The build projects catalog entries into `dist/manifest.json`; do not duplicate
+site origins manually in the source manifest. `SearchProvider` is a reserved,
+optional capability. Do not add a concrete provider until the separate
+MultiSearch implementation is designed and tested.
+
 ## Update the embedded TaskFlow WebUI
 
 The settings panel can compare the embedded SHA-256 with the public TaskFlow

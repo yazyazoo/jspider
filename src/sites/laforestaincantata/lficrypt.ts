@@ -1,4 +1,4 @@
-import { normalizeArchiveUrl } from '../domain/archive-links';
+import { normalizeArchiveUrl } from '../../domain/archive-links';
 
 export function normalizeLfiCryptUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;

@@ -19,10 +19,36 @@ Pagina supportata
 
 ## Livello pagina e scraper
 
-`src/sites/` contiene l’estrazione selettiva per TitanHD e La Foresta
-Incantata. Il content script legge titolo corrente, riferimento IMDb, metadati
-tecnici, versioni, link agli archivi e funzioni di ringraziamento/sblocco.
-Gestisce inoltre l’overlay portabile nella pagina usato dai browser Chromium.
+`src/sites/catalog.json` è la fonte dichiarativa per ID, origini esatte,
+pattern delle pagine e capacità disponibili. Ogni sito supportato vive nella
+propria cartella ed esporta un `SiteModule`:
+
+```text
+src/sites/
+  catalog.json
+  contracts.ts
+  registry.ts
+  titanhd/
+    module.ts
+    article.ts
+  laforestaincantata/
+    module.ts
+    article.ts
+    technical.ts
+    lficrypt.ts
+```
+
+Il content script conosce soltanto il registro comune e il contratto
+`ArticleAdapter`. L’adapter legge titolo corrente, riferimento IMDb, metadati
+tecnici, versioni, link agli archivi e funzioni di ringraziamento/sblocco. Il
+registro rifiuta corrispondenze assenti o ambigue invece di scegliere in base
+all’ordine. Il controllo dell’origine esatta rimane anche dentro ogni adapter.
+
+`SearchProvider` è un contratto opzionale riservato a una futura interfaccia
+MultiSearch. Nessuno dei moduli attuali lo implementa: JSpider continua a
+lavorare soltanto sulla pagina supportata già aperta e la ricerca non condivide
+il percorso delle azioni articolo. Il content script gestisce inoltre l’overlay
+portabile usato dai browser Chromium.
 
 ## Livello sidebar
 
@@ -79,3 +105,9 @@ Sorgenti, test, documentazione e script di build vivono in questa repository.
 `dist/` viene generata e versionata, così un clone è subito caricabile. La
 configurazione locale rimane esclusa. Gli ZIP delle GitHub Release contengono
 solamente l’estensione runtime e l’esempio di configurazione con segnaposto.
+
+Il `manifest.json` sorgente contiene le impostazioni generali dell’estensione e
+delle API. Durante la build, `scripts/site-manifest.mjs` valida il catalogo e
+genera in `dist/manifest.json` i permessi host, i match dei content script e i
+match delle risorse accessibili relativi ai siti. Pattern non validi, duplicati
+o appartenenti a origini diverse bloccano la build.

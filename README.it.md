@@ -51,6 +51,12 @@ come estensione non pacchettizzata; non caricare la radice della repository.
 Quando esiste `config.local.json` nella radice, la build locale lo copia in
 `dist/`, ma quella configurazione locale rimane esclusa da Git.
 
+I siti supportati sono isolati in `src/sites/<site-id>/`. Origini esatte e
+pattern delle pagine vengono dichiarati una sola volta in
+`src/sites/catalog.json`; la build valida il catalogo e genera le parti del
+manifest distribuito specifiche dei siti. I provider MultiSearch sono
+volutamente esclusi da questa release.
+
 JSpider incorpora una revisione verificata della WebUI TaskFlow per mantenere
 compatibile con Manifest V3 il ramo TaskFlow Create precompilato. Le
 impostazioni possono controllare se esiste un componente pubblico più recente.

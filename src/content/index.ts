@@ -1,4 +1,5 @@
-import { resolveSiteAdapter } from '../sites/registry';
+import type { ArticleAdapter } from '../sites/contracts';
+import { resolveArticleModule } from '../sites/registry';
 import { createOverlayController } from './overlay';
 
 type Message = { target?: string; action?: string; variantKeys?: string[]; width?: number };
@@ -13,7 +14,7 @@ const overlay = createOverlayController(
 );
 
 async function handle(message: Message): Promise<unknown> {
-  const adapter = resolveSiteAdapter(location.href);
+  const adapter = resolveContentArticle(location.href);
   if (!adapter) throw new Error('Questa pagina non è supportata da JSpider.');
   if (message.action === 'overlay.toggle') return overlay.toggle();
   if (message.action === 'overlay.status') return overlay.status();
@@ -26,6 +27,10 @@ async function handle(message: Message): Promise<unknown> {
     return adapter.thankSelected(document, location.href, message.variantKeys ?? []);
   }
   throw new Error('Azione pagina non supportata.');
+}
+
+export function resolveContentArticle(url: string): ArticleAdapter | null {
+  return resolveArticleModule(url)?.article ?? null;
 }
 
 chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {

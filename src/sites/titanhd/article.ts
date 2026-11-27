@@ -1,7 +1,10 @@
-import { normalizeArchiveUrl } from '../domain/archive-links';
-import type { MediaKind, PageSnapshot, ReleaseVariant } from '../domain/models';
-import { parseQuantity, parseTechnicalReport } from '../domain/technical';
-import type { SiteAdapter, ThanksFailure, ThanksResult } from './types';
+import { normalizeArchiveUrl } from '../../domain/archive-links';
+import type { MediaKind, PageSnapshot, ReleaseVariant } from '../../domain/models';
+import { parseQuantity, parseTechnicalReport } from '../../domain/technical';
+import { requireSiteDefinition } from '../catalog';
+import type { ArticleAdapter, ThanksFailure, ThanksResult } from '../contracts';
+
+const siteDefinition = requireSiteDefinition('titanhd');
 
 interface TitanEntry {
   panel: Element;
@@ -224,10 +227,10 @@ async function thankSelected(
   return { context: fresh.context, thanks: { thanked, already, failed } };
 }
 
-export const titanHdAdapter: SiteAdapter = {
-  id: 'titanhd',
-  name: 'TitanHD',
-  patterns: ['https://titanhd.space/catalogo/*'],
+export const titanHdAdapter: ArticleAdapter = {
+  id: siteDefinition.siteId,
+  name: siteDefinition.siteName,
+  patterns: [...siteDefinition.articleMatches],
   matches(value) { try { pageUrl(value); return true; } catch { return false; } },
   normalizeUrl: pageUrl,
   readPage,
