@@ -46,9 +46,9 @@ describe('sidebar fallback action', () => {
     expect(document.querySelector('#settings-panel #log-directory-state')).not.toBeNull();
     const configuredLogDirectory = document.querySelector('#settings-panel #log-directory-config');
     expect(configuredLogDirectory?.getAttribute('type')).toBe('text');
-    expect(configuredLogDirectory?.hasAttribute('readonly')).toBe(false);
+    expect(configuredLogDirectory?.hasAttribute('readonly')).toBe(true);
     expect(document.querySelector('#settings-panel #log-directory-choose')?.textContent)
-      .toBe('Allinea cartella progetto e config');
+      .toBe('Autorizza cartella log');
     expect(document.querySelector('#settings-panel #webui-version-check')?.textContent)
       .toBe('Controlla aggiornamenti WebUI');
     expect(document.querySelector('#settings-panel #webui-version-state')).not.toBeNull();

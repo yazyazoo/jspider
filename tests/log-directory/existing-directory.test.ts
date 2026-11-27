@@ -15,7 +15,7 @@ function fixture() {
 }
 
 describe('existing Chromium log directory migration', () => {
-  it('aligns an existing authorized log handle without opening a directory picker', async () => {
+  it('automatically aligns an existing authorized log handle to the configured path', async () => {
     const view = fixture();
     const calls: string[] = [];
     const published: Record<string, unknown>[] = [];
@@ -26,15 +26,12 @@ describe('existing Chromium log directory migration', () => {
     };
     const controller = initializeExistingLogDirectory(view, {
       async loadExisting() { calls.push('load'); return handle as never; },
-      async synchronizeSettings() { calls.push('sync'); },
       async publish(items) { calls.push('publish'); published.push(items); },
     });
 
     await controller.refresh();
-    expect(view.existingButton.hidden).toBe(false);
-    await controller.adopt();
 
-    expect(calls).toEqual(['load', 'load', 'sync', 'publish']);
+    expect(calls).toEqual(['load', 'publish']);
     expect(published).toEqual([{
       'jspider.logDirectoryName': 'log',
       'jspider.logDirectoryPath': 'C:\\work\\JSpider-follow-season\\log',
@@ -42,8 +39,9 @@ describe('existing Chromium log directory migration', () => {
       'jspider.logDirectoryRevision': expect.any(Number),
     }]);
     expect(view.state.textContent).toBe(
-      'CONFIG E CHROMIUM ALLINEATI · C:\\work\\JSpider-follow-season\\log · cartella log già autorizzata confermata. Puoi chiudere questa scheda.',
+      'CONFIG E CHROMIUM ALLINEATI · C:\\work\\JSpider-follow-season\\log · autorizzazione Chromium già presente.',
     );
+    expect(view.existingButton.hidden).toBe(true);
   });
 
   it('renews permission from the explicit confirmation click', async () => {
@@ -56,7 +54,6 @@ describe('existing Chromium log directory migration', () => {
     };
     const controller = initializeExistingLogDirectory(view, {
       async loadExisting() { return handle as never; },
-      async synchronizeSettings() {},
       async publish() {},
     });
 
@@ -70,7 +67,6 @@ describe('existing Chromium log directory migration', () => {
     const view = fixture();
     const controller = initializeExistingLogDirectory(view, {
       async loadExisting() { return null; },
-      async synchronizeSettings() {},
       async publish() {},
     });
 

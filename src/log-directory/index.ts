@@ -4,17 +4,14 @@ import {
 } from '../background/log-directory';
 import { initializeLogDirectoryPicker } from './controller';
 import { initializeExistingLogDirectory } from './existing-directory';
-import {
-  alignProjectLogDirectory,
-  type ProjectDirectoryHandle,
-} from './project-config';
+import { resolveLogDirectoryPath } from './path-validation';
 
 interface DirectoryPickerWindow extends Window {
   showDirectoryPicker(options: {
     id: string;
     mode: 'readwrite';
     startIn: 'desktop';
-  }): Promise<ProjectDirectoryHandle>;
+  }): Promise<WritableDirectoryHandle>;
 }
 interface RuntimeResponse { ok: boolean; error?: { message?: string } }
 const chooseButton = document.getElementById('choose-directory') as HTMLButtonElement;
@@ -24,42 +21,34 @@ const state = document.getElementById('directory-state') as HTMLElement;
 const pickerWindow = window as unknown as Partial<DirectoryPickerWindow>;
 const repository = new LogDirectoryRepository();
 const publish = (items: Record<string, unknown>) => chrome.storage.local.set(items);
-const synchronizeSettings = async () => {
-  const response = await chrome.runtime.sendMessage({
-    target: 'background', action: 'settings.get',
-  }) as RuntimeResponse;
-  if (!response.ok) throw new Error(response.error?.message ?? 'Sincronizzazione impostazioni non riuscita.');
-};
-
 const existingDirectory = initializeExistingLogDirectory({
   pathInput, existingButton, state,
 }, {
   loadExisting: () => repository.load(),
   publish,
-  synchronizeSettings,
 });
-void existingDirectory.refresh().catch(() => undefined);
 
 if (typeof pickerWindow.showDirectoryPicker !== 'function') {
   chooseButton.disabled = true;
   state.textContent = 'Questo browser Chromium non espone il selettore di cartelle richiesto.';
 } else {
   initializeLogDirectoryPicker({ chooseButton, pathInput, state }, {
-    pickProject: () => pickerWindow.showDirectoryPicker!({
-      id: 'jspider-project-log-config', mode: 'readwrite', startIn: 'desktop',
+    pickLog: () => pickerWindow.showDirectoryPicker!({
+      id: 'jspider-quick-workflow-logs', mode: 'readwrite', startIn: 'desktop',
     }),
-    align: alignProjectLogDirectory,
     saveLog: (handle) => repository.save(handle),
     publish,
-    synchronizeSettings,
   });
-  void Promise.all([
-    chrome.storage.local.get(['jspider.logDirectoryDraft', 'jspider.logDirectoryPath']),
-    chrome.runtime.sendMessage({ target: 'background', action: 'settings.get' }),
-  ]).then(([stored, rawResponse]) => {
+}
+
+void chrome.runtime.sendMessage({ target: 'background', action: 'settings.get' })
+  .then(async (rawResponse) => {
     const response = rawResponse as RuntimeResponse & { data?: { logDirectoryConfig?: string } };
     const configured = response.ok ? response.data?.logDirectoryConfig ?? '' : '';
-    pathInput.value = String(stored['jspider.logDirectoryDraft']
-      ?? stored['jspider.logDirectoryPath'] ?? configured);
-  }).catch(() => undefined);
-}
+    pathInput.value = resolveLogDirectoryPath(configured);
+    chooseButton.disabled = typeof pickerWindow.showDirectoryPicker !== 'function' || !pathInput.value;
+    if (pathInput.value) await existingDirectory.refresh();
+  }).catch((reason: unknown) => {
+    state.textContent = reason instanceof Error
+      ? reason.message : 'Configurazione della cartella log non disponibile.';
+  });

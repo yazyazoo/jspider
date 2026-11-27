@@ -12,43 +12,31 @@ function fixture() {
 }
 
 describe('top-level log directory picker', () => {
-  it('aligns both configs, stores the log handle, publishes the full path, and synchronizes settings', async () => {
+  it('authorizes the configured log folder directly without selecting the project root', async () => {
     const view = fixture();
-    view.pathInput.value = 'C:\\work\\JSpider-follow-season\\log';
+    view.pathInput.value = 'C:\\work\\JSpider\\log';
     const saved: unknown[] = [];
     const markers: Record<string, unknown>[] = [];
-    const project = { name: 'JSpider-follow-season' };
     const logHandle = { name: 'log' };
     const calls: string[] = [];
     const controller = initializeLogDirectoryPicker(view, {
-      async pickProject() { calls.push('pick'); return project as never; },
-      async align(value, path) {
-        calls.push('align');
-        expect(value).toBe(project);
-        expect(path).toBe('C:\\work\\JSpider-follow-season\\log');
-        return {
-          logHandle: logHandle as never,
-          fullPath: path,
-          updatedFiles: ['config.local.json', 'dist/config.local.json'],
-        };
-      },
+      async pickLog() { calls.push('pick'); return logHandle as never; },
       async saveLog(value) { calls.push('save'); saved.push(value); },
       async publish(items) { calls.push('publish'); markers.push(items); },
-      async synchronizeSettings() { calls.push('sync'); },
     });
 
     await controller.choose();
 
-    expect(calls).toEqual(['pick', 'align', 'save', 'sync', 'publish']);
+    expect(calls).toEqual(['pick', 'save', 'publish']);
     expect(saved).toEqual([logHandle]);
     expect(markers).toEqual([{
       'jspider.logDirectoryName': 'log',
-      'jspider.logDirectoryPath': 'C:\\work\\JSpider-follow-season\\log',
-      'jspider.logDirectoryDraft': 'C:\\work\\JSpider-follow-season\\log',
+      'jspider.logDirectoryPath': 'C:\\work\\JSpider\\log',
+      'jspider.logDirectoryDraft': 'C:\\work\\JSpider\\log',
       'jspider.logDirectoryRevision': expect.any(Number),
     }]);
     expect(view.state.textContent).toBe(
-      'CONFIG E CHROMIUM ALLINEATI · C:\\work\\JSpider-follow-season\\log · config root e dist aggiornati. Puoi chiudere questa scheda.',
+      'CONFIG E CHROMIUM ALLINEATI · C:\\work\\JSpider\\log. Puoi chiudere questa scheda.',
     );
   });
 
@@ -56,28 +44,25 @@ describe('top-level log directory picker', () => {
     const view = fixture();
     view.pathInput.value = 'C:\\work\\JSpider\\log';
     const controller = initializeLogDirectoryPicker(view, {
-      async pickProject() { throw new DOMException('cancelled', 'AbortError'); },
-      async align() { throw new Error('must not align'); },
+      async pickLog() { throw new DOMException('cancelled', 'AbortError'); },
       async saveLog() { throw new Error('must not save'); },
       async publish() { throw new Error('must not publish'); },
-      async synchronizeSettings() { throw new Error('must not synchronize'); },
     });
 
     await controller.choose();
 
-    expect(view.state.textContent).toContain('Chromium ha annullato il selettore dopo la scelta');
-    expect(view.state.textContent).toContain('Conferma cartella già autorizzata');
+    expect(view.state.textContent).toBe(
+      'Selezione annullata. JSpider non ha modificato la configurazione.',
+    );
   });
 
   it('does not open the picker without a complete path', async () => {
     const view = fixture();
     let picked = false;
     const controller = initializeLogDirectoryPicker(view, {
-      async pickProject() { picked = true; return {} as never; },
-      async align() { throw new Error('must not align'); },
+      async pickLog() { picked = true; return {} as never; },
       async saveLog() { throw new Error('must not save'); },
       async publish() { throw new Error('must not publish'); },
-      async synchronizeSettings() { throw new Error('must not synchronize'); },
     });
 
     await controller.choose();

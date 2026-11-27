@@ -21,7 +21,7 @@ describe('log directory settings', () => {
       configured: false, name: null, permission: 'missing', configuredPath: '', authorizedPath: null,
     });
     expect(view.state.textContent).toContain('CONFIG MANCANTE');
-    expect(view.chooseButton.textContent).toBe('Allinea cartella progetto e config');
+    expect(view.chooseButton.textContent).toBe('Autorizza cartella log');
 
     renderLogDirectoryStatus(view, {
       configured: false, name: null, permission: 'missing',
@@ -48,7 +48,7 @@ describe('log directory settings', () => {
     expect(view.state.textContent).toBe(
       'CONFIG E CHROMIUM ALLINEATI · C:\\work\\JSpider\\log.',
     );
-    expect(view.chooseButton.textContent).toBe('Cambia cartella progetto');
+    expect(view.chooseButton.textContent).toBe('Riautorizza cartella log');
   });
 
   it('opens the authorization page and can refresh the current status', async () => {
@@ -72,7 +72,7 @@ describe('log directory settings', () => {
     view.chooseButton.click();
     await Promise.resolve();
 
-    expect(view.state.textContent).toContain('cartella progetto');
+    expect(view.state.textContent).toContain('cartella log');
     expect(opened).toBe(1);
     expect(openedPath).toBe('C:\\work\\JSpider\\log');
     controller.dispose();

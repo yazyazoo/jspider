@@ -1231,7 +1231,7 @@ function initializeQuickWorkflowLog(view, dependencies) {
 // src/sidebar/log-directory-settings.ts
 function renderLogDirectoryStatus(view, status2) {
   view.pathInput.value = status2.configuredPath;
-  view.chooseButton.textContent = "Allinea cartella progetto e config";
+  view.chooseButton.textContent = "Autorizza cartella log";
   if (!status2.configuredPath) {
     view.state.textContent = "CONFIG MANCANTE \xB7 inserisci il percorso completo della cartella log.";
     return;
@@ -1248,7 +1248,7 @@ function renderLogDirectoryStatus(view, status2) {
     view.state.textContent = `NON ALLINEATI \xB7 config: ${status2.configuredPath} \xB7 Chromium: ${status2.authorizedPath}.`;
     return;
   }
-  view.chooseButton.textContent = "Cambia cartella progetto";
+  view.chooseButton.textContent = "Riautorizza cartella log";
   view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${status2.configuredPath}.`;
 }
 function initializeLogDirectorySettings(view, dependencies) {
@@ -1261,7 +1261,7 @@ function initializeLogDirectorySettings(view, dependencies) {
       view.state.textContent = "CONFIG MANCANTE \xB7 inserisci il percorso completo della cartella log.";
       return;
     }
-    view.state.textContent = "Seleziona la cartella progetto nella nuova scheda JSpider.";
+    view.state.textContent = "Seleziona direttamente la cartella log nella nuova scheda JSpider.";
     void dependencies.openPicker(path);
   };
   view.chooseButton.addEventListener("click", choose);

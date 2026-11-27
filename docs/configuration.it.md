@@ -22,7 +22,7 @@ crea il file direttamente accanto al `manifest.json` estratto.
 | `mdblistApiKey` | API key MDBList usata per leggere rating e premi |
 | `embyBaseUrl` | Origine HTTPS del server Emby |
 | `embyToken` | Token API Emby inviato solamente nell’header `X-Emby-Token` |
-| `_logDirectory` | Percorso completo della cartella `log`, mostrato in chiaro e allineato automaticamente dal selettore JSpider |
+| `_logDirectory` | Percorso completo della cartella `log`, mostrato in chiaro e usato come oracolo durante l’autorizzazione Chromium |
 
 I valori TaskFlow, TMDB, OMDb e MDBList possono essere salvati anche dal pannello
 Impostazioni di JSpider. Ogni proprietà esplicitamente presente in
@@ -52,13 +52,12 @@ Non sostituire mai i segnaposto di `config.example.json` con credenziali reali.
 
 ## Cartella log Quick Workflow
 
-Inserisci il percorso completo della cartella `log` e usa **Impostazioni →
-Allinea cartella progetto e config**. Nella pagina aperta dall’estensione devi
-selezionare la root del progetto (`JSpider` o `JSpider-follow-season`), non la
-cartella `log`. JSpider verifica che il percorso inserito appartenga alla root
-selezionata, crea `log` se manca, conserva l’autorizzazione Chromium e aggiorna
-`config.local.json` sia nella root sia in `dist` quando quest’ultima esiste. Gli
-altri valori, incluse chiavi e token, restano invariati.
+Configura `_logDirectory` in `config.local.json`, ricarica l’estensione e usa
+**Impostazioni → Autorizza cartella log**. Nella pagina aperta dall’estensione
+seleziona direttamente la cartella `log` mostrata, non la root del progetto.
+JSpider conserva l’autorizzazione Chromium e associa l’handle al percorso del
+config. Il file JSON resta l’oracolo e ha precedenza su eventuali percorsi
+obsoleti rimasti nello storage del browser.
 
 Lo stato **CONFIG E CHROMIUM ALLINEATI** conferma che il percorso completo nel
 JSON e quello autorizzato dal browser coincidono. Gli stati **CONFIG MANCANTE**,
@@ -67,9 +66,7 @@ deve essere corretta.
 
 Se Chromium conserva già un handle `log` precedente, usa **Conferma cartella
 già autorizzata**: associa il percorso completo visibile all’handle esistente
-senza riaprire il selettore. È anche il percorso consigliato sulle versioni
-Chromium 157 per Windows affette dalla regressione che può restituire
-erroneamente `AbortError` dopo una selezione valida.
+senza riaprire il selettore.
 
 Ogni Quick Workflow crea un file JSON leggibile con data e ora locale all’inizio
 del nome, seguite dal nome workflow. Ordinando la cartella per nome si ottiene

@@ -18,7 +18,7 @@ export function renderLogDirectoryStatus(
   status: LogDirectorySettingsStatus,
 ): void {
   view.pathInput.value = status.configuredPath;
-  view.chooseButton.textContent = 'Allinea cartella progetto e config';
+  view.chooseButton.textContent = 'Autorizza cartella log';
   if (!status.configuredPath) {
     view.state.textContent = 'CONFIG MANCANTE · inserisci il percorso completo della cartella log.';
     return;
@@ -36,7 +36,7 @@ export function renderLogDirectoryStatus(
     view.state.textContent = `NON ALLINEATI · config: ${status.configuredPath} · Chromium: ${status.authorizedPath}.`;
     return;
   }
-  view.chooseButton.textContent = 'Cambia cartella progetto';
+  view.chooseButton.textContent = 'Riautorizza cartella log';
   view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${status.configuredPath}.`;
 }
 export function initializeLogDirectorySettings(
@@ -55,7 +55,7 @@ export function initializeLogDirectorySettings(
       view.state.textContent = 'CONFIG MANCANTE · inserisci il percorso completo della cartella log.';
       return;
     }
-    view.state.textContent = 'Seleziona la cartella progetto nella nuova scheda JSpider.';
+    view.state.textContent = 'Seleziona direttamente la cartella log nella nuova scheda JSpider.';
     void dependencies.openPicker(path);
   };
   view.chooseButton.addEventListener('click', choose);

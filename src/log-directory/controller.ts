@@ -1,8 +1,5 @@
 import type { WritableDirectoryHandle } from '../background/log-directory';
-import type {
-  ProjectDirectoryHandle,
-  ProjectLogAlignment,
-} from './project-config';
+import { validateExistingLogPath } from './path-validation';
 
 export interface LogDirectoryPickerView {
   pathInput: HTMLInputElement;
@@ -10,11 +7,9 @@ export interface LogDirectoryPickerView {
   state: HTMLElement;
 }
 export interface LogDirectoryPickerDependencies {
-  pickProject(): Promise<ProjectDirectoryHandle>;
-  align(project: ProjectDirectoryHandle, path: string): Promise<ProjectLogAlignment>;
+  pickLog(): Promise<WritableDirectoryHandle>;
   saveLog(handle: WritableDirectoryHandle): Promise<void>;
   publish(items: Record<string, unknown>): Promise<void>;
-  synchronizeSettings(): Promise<void>;
 }
 export function initializeLogDirectoryPicker(
   view: LogDirectoryPickerView,
@@ -30,24 +25,22 @@ export function initializeLogDirectoryPicker(
       return;
     }
     view.chooseButton.disabled = true;
-    view.state.textContent = 'Seleziona la cartella progetto che contiene config.local.json, dist e log…';
+    view.state.textContent = 'Seleziona direttamente la cartella log indicata sopra…';
     try {
-      const project = await dependencies.pickProject();
-      const result = await dependencies.align(project, requestedPath);
-      await dependencies.saveLog(result.logHandle as WritableDirectoryHandle);
-      await dependencies.synchronizeSettings();
+      const logHandle = await dependencies.pickLog();
+      const fullPath = validateExistingLogPath(requestedPath, logHandle.name);
+      await dependencies.saveLog(logHandle);
       await dependencies.publish({
-        'jspider.logDirectoryName': result.logHandle.name,
-        'jspider.logDirectoryPath': result.fullPath,
-        'jspider.logDirectoryDraft': result.fullPath,
+        'jspider.logDirectoryName': logHandle.name,
+        'jspider.logDirectoryPath': fullPath,
+        'jspider.logDirectoryDraft': fullPath,
         'jspider.logDirectoryRevision': Date.now(),
       });
-      view.pathInput.value = result.fullPath;
-      const files = result.updatedFiles.length > 1 ? 'config root e dist aggiornati' : 'config aggiornato';
-      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${result.fullPath} · ${files}. Puoi chiudere questa scheda.`;
+      view.pathInput.value = fullPath;
+      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${fullPath}. Puoi chiudere questa scheda.`;
     } catch (reason) {
       view.state.textContent = reason instanceof DOMException && reason.name === 'AbortError'
-        ? 'Chromium ha annullato il selettore dopo la scelta (AbortError). Se la finestra di selezione copre Edge, riducila oppure usa “Conferma cartella già autorizzata”.'
+        ? 'Selezione annullata. JSpider non ha modificato la configurazione.'
         : reason instanceof Error ? reason.message : 'Cartella log non collegata.';
     } finally {
       view.chooseButton.disabled = false;

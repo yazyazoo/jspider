@@ -1,5 +1,5 @@
 import type { WritableDirectoryHandle } from '../background/log-directory';
-import { validateExistingLogPath } from './project-config';
+import { validateExistingLogPath } from './path-validation';
 
 export interface ExistingLogDirectoryView {
   pathInput: HTMLInputElement;
@@ -9,7 +9,6 @@ export interface ExistingLogDirectoryView {
 
 export interface ExistingLogDirectoryDependencies {
   loadExisting(): Promise<WritableDirectoryHandle | null>;
-  synchronizeSettings(): Promise<void>;
   publish(items: Record<string, unknown>): Promise<void>;
 }
 
@@ -21,12 +20,28 @@ export function initializeExistingLogDirectory(
   adopt(): Promise<void>;
   dispose(): void;
 } {
+  const publishAlignment = async (handle: WritableDirectoryHandle, fullPath: string) => {
+    await dependencies.publish({
+      'jspider.logDirectoryName': handle.name,
+      'jspider.logDirectoryPath': fullPath,
+      'jspider.logDirectoryDraft': fullPath,
+      'jspider.logDirectoryRevision': Date.now(),
+    });
+  };
+
   const refresh = async () => {
     const handle = await dependencies.loadExisting();
     view.existingButton.hidden = !handle || handle.name.toLocaleLowerCase() !== 'log';
-    if (!view.existingButton.hidden) {
-      view.state.textContent = 'Cartella log Chromium già presente. Confermala senza riaprire il selettore.';
+    if (view.existingButton.hidden || !handle) return;
+    const fullPath = validateExistingLogPath(view.pathInput.value, handle.name);
+    const permission = await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'prompt' as const);
+    if (permission === 'granted') {
+      await publishAlignment(handle, fullPath);
+      view.existingButton.hidden = true;
+      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${fullPath} · autorizzazione Chromium già presente.`;
+      return;
     }
+    view.state.textContent = 'Cartella log Chromium già presente. Conferma l’autorizzazione senza riaprire il selettore.';
   };
 
   const adopt = async () => {
@@ -41,13 +56,7 @@ export function initializeExistingLogDirectory(
       if (granted !== 'granted') {
         throw new Error('CHROMIUM NON AUTORIZZATO · permesso di scrittura non concesso.');
       }
-      await dependencies.synchronizeSettings();
-      await dependencies.publish({
-        'jspider.logDirectoryName': handle.name,
-        'jspider.logDirectoryPath': fullPath,
-        'jspider.logDirectoryDraft': fullPath,
-        'jspider.logDirectoryRevision': Date.now(),
-      });
+      await publishAlignment(handle, fullPath);
       view.pathInput.value = fullPath;
       view.state.textContent = `CONFIG E CHROMIUM ALLINEATI · ${fullPath} · cartella log già autorizzata confermata. Puoi chiudere questa scheda.`;
     } catch (reason) {

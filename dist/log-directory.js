@@ -81,6 +81,32 @@ var LogDirectoryRepository = class {
   }
 };
 
+// src/log-directory/path-validation.ts
+function normalizePath(value) {
+  const input = value.trim();
+  if (!input) throw new Error("Inserisci il percorso completo della cartella log.");
+  if (new RegExp("\\p{Cc}", "u").test(input)) throw new Error("Il percorso completo contiene caratteri non validi.");
+  if (/^[A-Za-z]:[\\/]/.test(input)) {
+    const path = input.replace(/\//g, "\\").replace(/\\+/g, "\\").replace(/\\$/, "");
+    return { path, parts: path.slice(3).split("\\").filter(Boolean) };
+  }
+  if (input.startsWith("/")) {
+    const path = input.replace(/\/+/g, "/").replace(/\/$/, "") || "/";
+    return { path, parts: path.split("/").filter(Boolean) };
+  }
+  throw new Error("Inserisci il percorso completo assoluto della cartella log.");
+}
+function validateExistingLogPath(value, directoryName) {
+  const { path, parts } = normalizePath(value);
+  if (directoryName.toLocaleLowerCase() !== "log" || parts.at(-1)?.toLocaleLowerCase() !== "log") {
+    throw new Error("Seleziona direttamente la cartella \u201Clog\u201D indicata nel percorso configurato.");
+  }
+  return path;
+}
+function resolveLogDirectoryPath(configuredPath) {
+  return configuredPath?.trim() ?? "";
+}
+
 // src/log-directory/controller.ts
 function initializeLogDirectoryPicker(view, dependencies) {
   const choose = async () => {
@@ -90,23 +116,21 @@ function initializeLogDirectoryPicker(view, dependencies) {
       return;
     }
     view.chooseButton.disabled = true;
-    view.state.textContent = "Seleziona la cartella progetto che contiene config.local.json, dist e log\u2026";
+    view.state.textContent = "Seleziona direttamente la cartella log indicata sopra\u2026";
     try {
-      const project = await dependencies.pickProject();
-      const result = await dependencies.align(project, requestedPath);
-      await dependencies.saveLog(result.logHandle);
-      await dependencies.synchronizeSettings();
+      const logHandle = await dependencies.pickLog();
+      const fullPath = validateExistingLogPath(requestedPath, logHandle.name);
+      await dependencies.saveLog(logHandle);
       await dependencies.publish({
-        "jspider.logDirectoryName": result.logHandle.name,
-        "jspider.logDirectoryPath": result.fullPath,
-        "jspider.logDirectoryDraft": result.fullPath,
+        "jspider.logDirectoryName": logHandle.name,
+        "jspider.logDirectoryPath": fullPath,
+        "jspider.logDirectoryDraft": fullPath,
         "jspider.logDirectoryRevision": Date.now()
       });
-      view.pathInput.value = result.fullPath;
-      const files = result.updatedFiles.length > 1 ? "config root e dist aggiornati" : "config aggiornato";
-      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${result.fullPath} \xB7 ${files}. Puoi chiudere questa scheda.`;
+      view.pathInput.value = fullPath;
+      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${fullPath}. Puoi chiudere questa scheda.`;
     } catch (reason) {
-      view.state.textContent = reason instanceof DOMException && reason.name === "AbortError" ? "Chromium ha annullato il selettore dopo la scelta (AbortError). Se la finestra di selezione copre Edge, riducila oppure usa \u201CConferma cartella gi\xE0 autorizzata\u201D." : reason instanceof Error ? reason.message : "Cartella log non collegata.";
+      view.state.textContent = reason instanceof DOMException && reason.name === "AbortError" ? "Selezione annullata. JSpider non ha modificato la configurazione." : reason instanceof Error ? reason.message : "Cartella log non collegata.";
     } finally {
       view.chooseButton.disabled = false;
     }
@@ -123,94 +147,29 @@ function initializeLogDirectoryPicker(view, dependencies) {
   };
 }
 
-// src/log-directory/project-config.ts
-function normalizePath(value) {
-  const input = value.trim();
-  if (!input) throw new Error("Inserisci il percorso completo della cartella log.");
-  if (new RegExp("\\p{Cc}", "u").test(input)) throw new Error("Il percorso completo contiene caratteri non validi.");
-  if (/^[A-Za-z]:[\\/]/.test(input)) {
-    const path = input.replace(/\//g, "\\").replace(/\\+/g, "\\").replace(/\\$/, "");
-    return { path, parts: path.slice(3).split("\\").filter(Boolean) };
-  }
-  if (input.startsWith("/")) {
-    const path = input.replace(/\/+/g, "/").replace(/\/$/, "") || "/";
-    return { path, parts: path.split("/").filter(Boolean) };
-  }
-  throw new Error("Inserisci il percorso completo assoluto della cartella log.");
-}
-function validateProjectLogPath(value, projectName) {
-  const { path, parts } = normalizePath(value);
-  if (parts.at(-1)?.toLocaleLowerCase() !== "log") {
-    throw new Error("Il percorso completo deve terminare con la cartella \u201Clog\u201D.");
-  }
-  if (parts.at(-2)?.toLocaleLowerCase() !== projectName.toLocaleLowerCase()) {
-    throw new Error(`Il percorso deve appartenere alla cartella progetto selezionata \u201C${projectName}\u201D.`);
-  }
-  return path;
-}
-function validateExistingLogPath(value, directoryName) {
-  const { path, parts } = normalizePath(value);
-  if (directoryName.toLocaleLowerCase() !== "log" || parts.at(-1)?.toLocaleLowerCase() !== "log") {
-    throw new Error("La cartella Chromium gi\xE0 autorizzata e il percorso devono terminare con \u201Clog\u201D.");
-  }
-  return path;
-}
-function isNotFound(reason) {
-  return reason instanceof DOMException && reason.name === "NotFoundError";
-}
-async function readRootConfig(root) {
-  let handle;
-  try {
-    handle = await root.getFileHandle("config.local.json");
-  } catch (reason) {
-    if (isNotFound(reason)) {
-      throw new Error("CONFIG MANCANTE \xB7 config.local.json non esiste nella cartella progetto selezionata.");
-    }
-    throw reason;
-  }
-  try {
-    const value = JSON.parse(await (await handle.getFile()).text());
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    return { handle, value };
-  } catch {
-    throw new Error("Il config.local.json della root non \xE8 un JSON valido.");
-  }
-}
-async function writeJson(handle, value) {
-  const writable = await handle.createWritable();
-  await writable.write(`${JSON.stringify(value, null, 2)}
-`);
-  await writable.close();
-}
-async function alignProjectLogDirectory(root, requestedPath) {
-  const fullPath = validateProjectLogPath(requestedPath, root.name);
-  const rootConfig = await readRootConfig(root);
-  const next = { ...rootConfig.value, _logDirectory: fullPath };
-  let distConfig = null;
-  try {
-    const dist = await root.getDirectoryHandle("dist");
-    distConfig = await dist.getFileHandle("config.local.json", { create: true });
-  } catch (reason) {
-    if (!isNotFound(reason)) throw reason;
-  }
-  const logHandle = await root.getDirectoryHandle("log", { create: true });
-  await writeJson(rootConfig.handle, next);
-  const updatedFiles = ["config.local.json"];
-  if (distConfig) {
-    await writeJson(distConfig, next);
-    updatedFiles.push("dist/config.local.json");
-  }
-  return { logHandle, fullPath, updatedFiles };
-}
-
 // src/log-directory/existing-directory.ts
 function initializeExistingLogDirectory(view, dependencies) {
+  const publishAlignment = async (handle, fullPath) => {
+    await dependencies.publish({
+      "jspider.logDirectoryName": handle.name,
+      "jspider.logDirectoryPath": fullPath,
+      "jspider.logDirectoryDraft": fullPath,
+      "jspider.logDirectoryRevision": Date.now()
+    });
+  };
   const refresh = async () => {
     const handle = await dependencies.loadExisting();
     view.existingButton.hidden = !handle || handle.name.toLocaleLowerCase() !== "log";
-    if (!view.existingButton.hidden) {
-      view.state.textContent = "Cartella log Chromium gi\xE0 presente. Confermala senza riaprire il selettore.";
+    if (view.existingButton.hidden || !handle) return;
+    const fullPath = validateExistingLogPath(view.pathInput.value, handle.name);
+    const permission = await handle.queryPermission({ mode: "readwrite" }).catch(() => "prompt");
+    if (permission === "granted") {
+      await publishAlignment(handle, fullPath);
+      view.existingButton.hidden = true;
+      view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${fullPath} \xB7 autorizzazione Chromium gi\xE0 presente.`;
+      return;
     }
+    view.state.textContent = "Cartella log Chromium gi\xE0 presente. Conferma l\u2019autorizzazione senza riaprire il selettore.";
   };
   const adopt = async () => {
     view.existingButton.disabled = true;
@@ -223,13 +182,7 @@ function initializeExistingLogDirectory(view, dependencies) {
       if (granted !== "granted") {
         throw new Error("CHROMIUM NON AUTORIZZATO \xB7 permesso di scrittura non concesso.");
       }
-      await dependencies.synchronizeSettings();
-      await dependencies.publish({
-        "jspider.logDirectoryName": handle.name,
-        "jspider.logDirectoryPath": fullPath,
-        "jspider.logDirectoryDraft": fullPath,
-        "jspider.logDirectoryRevision": Date.now()
-      });
+      await publishAlignment(handle, fullPath);
       view.pathInput.value = fullPath;
       view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${fullPath} \xB7 cartella log gi\xE0 autorizzata confermata. Puoi chiudere questa scheda.`;
     } catch (reason) {
@@ -259,44 +212,34 @@ var state = document.getElementById("directory-state");
 var pickerWindow = window;
 var repository = new LogDirectoryRepository();
 var publish = (items) => chrome.storage.local.set(items);
-var synchronizeSettings = async () => {
-  const response = await chrome.runtime.sendMessage({
-    target: "background",
-    action: "settings.get"
-  });
-  if (!response.ok) throw new Error(response.error?.message ?? "Sincronizzazione impostazioni non riuscita.");
-};
 var existingDirectory = initializeExistingLogDirectory({
   pathInput,
   existingButton,
   state
 }, {
   loadExisting: () => repository.load(),
-  publish,
-  synchronizeSettings
+  publish
 });
-void existingDirectory.refresh().catch(() => void 0);
 if (typeof pickerWindow.showDirectoryPicker !== "function") {
   chooseButton.disabled = true;
   state.textContent = "Questo browser Chromium non espone il selettore di cartelle richiesto.";
 } else {
   initializeLogDirectoryPicker({ chooseButton, pathInput, state }, {
-    pickProject: () => pickerWindow.showDirectoryPicker({
-      id: "jspider-project-log-config",
+    pickLog: () => pickerWindow.showDirectoryPicker({
+      id: "jspider-quick-workflow-logs",
       mode: "readwrite",
       startIn: "desktop"
     }),
-    align: alignProjectLogDirectory,
     saveLog: (handle) => repository.save(handle),
-    publish,
-    synchronizeSettings
+    publish
   });
-  void Promise.all([
-    chrome.storage.local.get(["jspider.logDirectoryDraft", "jspider.logDirectoryPath"]),
-    chrome.runtime.sendMessage({ target: "background", action: "settings.get" })
-  ]).then(([stored, rawResponse]) => {
-    const response = rawResponse;
-    const configured = response.ok ? response.data?.logDirectoryConfig ?? "" : "";
-    pathInput.value = String(stored["jspider.logDirectoryDraft"] ?? stored["jspider.logDirectoryPath"] ?? configured);
-  }).catch(() => void 0);
 }
+void chrome.runtime.sendMessage({ target: "background", action: "settings.get" }).then(async (rawResponse) => {
+  const response = rawResponse;
+  const configured = response.ok ? response.data?.logDirectoryConfig ?? "" : "";
+  pathInput.value = resolveLogDirectoryPath(configured);
+  chooseButton.disabled = typeof pickerWindow.showDirectoryPicker !== "function" || !pathInput.value;
+  if (pathInput.value) await existingDirectory.refresh();
+}).catch((reason) => {
+  state.textContent = reason instanceof Error ? reason.message : "Configurazione della cartella log non disponibile.";
+});
