@@ -35,7 +35,9 @@ La barra del titolo contiene:
 
 - **Larghezza**: sceglie una delle cinque larghezze dell’overlay portabile.
 - **Log JSON**: apre il registro locale dell’ultima esecuzione Quick Workflow.
-- **Impostazioni**: apre i campi di collegamento TaskFlow, TMDB, OMDb e MDBList.
+- **Impostazioni**: apre i campi TaskFlow, TMDB, OMDb, MDBList, Emby e log.
+  Collega una volta `config.local.json` per consentire a **Salva impostazioni**
+  di aggiornare il file. Chromium riceve solo una copia dei valori salvati.
 - **Aggiorna pagina**: rilegge la scheda corrente e le relative versioni.
 
 Il pulsante in fondo **Apri WebUI TaskFlow** sostituisce la Home JSpider con la
@@ -175,12 +177,22 @@ nel proprio file JSON storico.
 
 Quick Workflow è il percorso semplificato predefinito.
 
-L’esecuzione apre una scheda JSpider dedicata in secondo piano. Mantienila aperta
+In **Impostazioni**, “Esecuzione protetta” è attiva di default. Apre una scheda
+JSpider dedicata in secondo piano. Mantienila aperta
 fino al completamento: attende il controllo link di JD anche per diversi minuti
 e prosegue con Create e Start. Puoi chiudere la sidebar durante l’attesa. Il
-risultato rimane nella scheda e nel log JSON. Se chiudi o ricarichi la scheda di
+risultato rimane nel log JSON e nella sidebar. Dopo il successo la scheda si
+chiude automaticamente; in caso di errore, anche di Start, rimane aperta.
+Se chiudi o ricarichi manualmente la scheda di
 esecuzione, JSpider non reinvia automaticamente i link: verifica prima lo stato
 di package e workflow nella WebUI TaskFlow.
+
+Disattivala per usare il precedente metodo nel background, senza una scheda
+aggiuntiva. Questa modalità è comoda per controlli rapidi, ma nelle attese lunghe
+Chromium può interrompere l’operazione prima di Create e Start. Il tooltip della
+checkbox spiega entrambe le scelte. La preferenza vale anche per “Carica package
+su JD” e resta salvata nel JSON tra sessioni. Dopo aver collegato config.local.json,
+“Salva impostazioni” aggiorna il file e copia i valori nello storage Chromium.
 
 1. Seleziona un **Preset TaskFlow**. Sotto il selettore appare la sequenza task.
 2. Controlla **Autodownload** e **Cleanup**.

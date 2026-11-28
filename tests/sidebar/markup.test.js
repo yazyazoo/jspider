@@ -35,6 +35,16 @@ describe('sidebar fallback action', () => {
     }
   });
 
+  it('explains both execution modes next to the enabled-by-default setting', () => {
+    const document = sidebar();
+    expect(document.querySelector('#settings-panel #protected-execution')?.hasAttribute('checked')).toBe(true);
+    const text = document.querySelector('#tip-protected-execution')?.textContent;
+    expect(text).toContain('Attiva (consigliata)');
+    expect(text).toContain('scheda JSpider in secondo piano');
+    expect(text).toContain('Disattiva:');
+    expect(text).toContain('Chromium può interrompere');
+  });
+
   it('uses a right-aligned title action group and a dedicated settings popover', () => {
     const document = sidebar();
     const actions = document.querySelector('#header-actions');
@@ -46,7 +56,7 @@ describe('sidebar fallback action', () => {
     expect(document.querySelector('#settings-panel #log-directory-state')).not.toBeNull();
     const configuredLogDirectory = document.querySelector('#settings-panel #log-directory-config');
     expect(configuredLogDirectory?.getAttribute('type')).toBe('text');
-    expect(configuredLogDirectory?.hasAttribute('readonly')).toBe(true);
+    expect(configuredLogDirectory?.hasAttribute('readonly')).toBe(false);
     expect(document.querySelector('#settings-panel #log-directory-choose')?.textContent)
       .toBe('Autorizza cartella log');
     expect(document.querySelector('#settings-panel #webui-version-check')?.textContent)

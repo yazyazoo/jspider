@@ -55,6 +55,8 @@ describe('local distribution configuration', () => {
     expect(buildScript).toContain("src/log-directory/index.ts");
     expect(buildScript).toContain("log-directory.html");
     expect(buildScript).toContain("log-directory.css");
+    expect(buildScript).toContain("src/settings-file.ts");
+    expect(buildScript).toContain("settings-file.html");
   });
 
   it('builds the distributed manifest from the declarative site catalog', async () => {

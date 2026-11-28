@@ -35,7 +35,9 @@ The title bar provides:
 - **Larghezza**: chooses one of five overlay widths when the portable overlay
   is in use.
 - **Log JSON**: opens the local record of the latest Quick Workflow run.
-- **Impostazioni**: opens the TaskFlow, TMDB, OMDb and MDBList connection fields.
+- **Impostazioni**: opens TaskFlow, TMDB, OMDb, MDBList, Emby and log fields.
+  Link `config.local.json` once so **Save settings** can update the file.
+  Chromium receives only a copy of the saved values.
 - **Aggiorna pagina**: rereads the current title page and its versions.
 
 The footer button **Apri WebUI TaskFlow** replaces the JSpider Home with the
@@ -170,12 +172,21 @@ page. Every run is then mirrored progressively to its own JSON history file.
 
 Quick Workflow is the default simplified path.
 
-Execution opens a dedicated JSpider tab in the background. Keep it open until
+In **Settings**, protected execution is enabled by default. It opens a dedicated
+JSpider tab in the background. Keep it open until
 completion: it waits for JD link checks, even for several minutes, then runs
 Create and Start. You may close the sidebar while waiting. The result remains
-in the execution tab and JSON log. Closing or reloading the execution tab never
+in the sidebar and JSON log. The execution tab closes automatically on success;
+errors, including a failed Start, keep it open. Manually closing or reloading it never
 automatically resubmits links; check packages and workflows in the TaskFlow WebUI
 before retrying.
+
+Disable it to use the previous background method without another tab. This mode
+is convenient for quick link checks, but Chromium can interrupt long waits before
+Create and Start. The checkbox tooltip explains both choices. This preference
+also applies to loading JD packages and persists in JSON across sessions. After
+linking config.local.json, Save settings updates that file and mirrors its values
+to Chromium storage.
 
 1. Select a **Preset TaskFlow**. Its task sequence is displayed below the
    selector.

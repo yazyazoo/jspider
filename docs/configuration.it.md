@@ -2,7 +2,7 @@
 
 # Configurazione
 
-JSpider legge `config.local.json` dalla radice dell’estensione. Il file
+JSpider usa `config.local.json` come persistenza principale. Il file
 versionato `config.example.json` contiene tutte le chiavi supportate con valori
 segnaposto.
 
@@ -11,11 +11,18 @@ repository. `npm run build` lo copia in `dist/`; il file locale copiato rimane
 escluso anche se la cartella compilata è versionata. Per una Release scaricata,
 crea il file direttamente accanto al `manifest.json` estratto.
 
+Apri **Impostazioni → Collega config.local.json**, seleziona quel singolo file e
+consenti la scrittura. Il file collegato diventa la fonte letta direttamente da
+JSpider: per le build dai sorgenti scegli quello nella root della repository.
+La copia in `dist` serve solo all’avvio prima del collegamento e viene aggiornata
+dalla build. Non serve autorizzare l’intera cartella progetto.
+
 ## Campi
 
 | Chiave | Scopo |
 | --- | --- |
 | `taskflowBaseUrl` | Origine TaskFlow, senza `/api/v1` |
+| `protectedExecution` | Booleano (default `true`), modificabile dal JSON e dalla checkbox “Esecuzione protetta” |
 | `taskflowToken` | Token Bearer amministrativo usato dalla WebUI e dal client API TaskFlow |
 | `tmdbCredential` | Token di lettura TMDB oppure API key v3 |
 | `omdbApiKey` | API key OMDb usata esclusivamente come fallback dei premi mancanti in MDBList |
@@ -24,16 +31,21 @@ crea il file direttamente accanto al `manifest.json` estratto.
 | `embyToken` | Token API Emby inviato solamente nell’header `X-Emby-Token` |
 | `_logDirectory` | Percorso completo della cartella `log`, mostrato in chiaro e usato come oracolo durante l’autorizzazione Chromium |
 
-I valori TaskFlow, TMDB, OMDb e MDBList possono essere salvati anche dal pannello
-Impostazioni di JSpider. Ogni proprietà esplicitamente presente in
-`config.local.json`, compreso un valore vuoto, ha la precedenza e viene
-sincronizzata in `chrome.storage.local`. Lo storage Edge è usato come fallback
-soltanto per proprietà assenti dal JSON. Durante l’attuale fase di test questi
-campi mostrano intenzionalmente i valori in chiaro.
+I campi delle impostazioni, inclusi Emby, percorso log ed esecuzione protetta,
+leggono il JSON. **Salva impostazioni** aggiorna prima il file collegato e poi
+la copia in `chrome.storage.local`. Lo storage Chromium non è mai una fonte dei
+valori. Le chiavi non modificate o non ancora riconosciute nel JSON sono conservate.
+Le modifiche esterne al file sono rilette aprendo le impostazioni e durante le
+operazioni API. I valori restano visibili in chiaro durante questa fase di test.
 
-Emby viene configurato esclusivamente tramite `config.local.json`. La ricerca è
-in sola lettura, usa l’ID TMDB validato quando disponibile e passa a titolo/anno
-solo dopo la scelta esplicita del fallback.
+Senza collegamento al file è possibile leggere il config incluso nell’estensione,
+ma il salvataggio viene bloccato con un messaggio esplicito. Se la scrittura fallisce,
+non viene mostrato un falso successo e Chromium non riceve i valori non salvati.
+Un JSON malformato viene segnalato; non viene sostituito con vecchi valori Chromium.
+Il browser può richiedere una nuova autorizzazione dopo una revoca o reinstallazione.
+
+La ricerca Emby è in sola lettura, usa l’ID TMDB validato quando disponibile e
+passa a titolo/anno solo dopo la scelta esplicita del fallback.
 
 ## Gestione dei segreti
 
@@ -52,7 +64,7 @@ Non sostituire mai i segnaposto di `config.example.json` con credenziali reali.
 
 ## Cartella log Quick Workflow
 
-Configura `_logDirectory` in `config.local.json`, ricarica l’estensione e usa
+Configura `_logDirectory` nel JSON o dal campo nelle impostazioni e salva, poi usa
 **Impostazioni → Autorizza cartella log**. Nella pagina aperta dall’estensione
 seleziona direttamente la cartella `log` mostrata, non la root del progetto.
 JSpider conserva l’autorizzazione Chromium e associa l’handle al percorso del

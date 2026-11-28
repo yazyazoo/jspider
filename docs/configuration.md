@@ -2,7 +2,7 @@ English | [Italiano](configuration.it.md)
 
 # Configuration
 
-JSpider reads `config.local.json` from the extension root. The tracked
+JSpider uses `config.local.json` as its primary persistence. The tracked
 `config.example.json` contains every supported key and placeholder values.
 
 For source builds, keep `config.local.json` in the repository root. `npm run
@@ -10,11 +10,17 @@ build` copies it into `dist/`; the copied local file remains ignored although
 the compiled directory is tracked. For a downloaded release, create the file
 directly beside the extracted `manifest.json`.
 
+Open **Settings → Link config.local.json**, select that single file, and grant
+write access. JSpider then reads the linked file directly. For source builds,
+select the repository-root file. The `dist` copy is only used for startup before
+linking and is refreshed by the build. Project-directory access is not required.
+
 ## Fields
 
 | Key | Purpose |
 | --- | --- |
 | `taskflowBaseUrl` | TaskFlow origin, without `/api/v1` |
+| `protectedExecution` | Boolean (default `true`), editable in JSON and through the protected-execution checkbox |
 | `taskflowToken` | Administrative Bearer token used by the TaskFlow WebUI and API client |
 | `tmdbCredential` | TMDB read-access token or v3 API key |
 | `omdbApiKey` | OMDb API key used only as a fallback for awards missing from MDBList |
@@ -23,16 +29,20 @@ directly beside the extracted `manifest.json`.
 | `embyToken` | Emby API token sent only through the `X-Emby-Token` header |
 | `_logDirectory` | Full `log` folder path, shown in clear text and used as the source of truth during Chromium authorization |
 
-TaskFlow, TMDB, OMDb, and MDBList values can also be saved from the JSpider
-settings panel. Every property explicitly present in `config.local.json`,
-including an empty value, takes precedence and is synchronized to
-`chrome.storage.local`. Edge storage is only a fallback for properties absent
-from the JSON. During the current test phase those settings fields
-intentionally show their values in clear text.
+All settings fields, including Emby, the log path and protected execution, read
+the JSON. **Save settings** writes the linked file first, then mirrors its values
+to `chrome.storage.local`. Chromium storage is never a source of settings values.
+Unchanged and unknown JSON properties are preserved. External file edits are read
+when opening settings and during API operations. Values remain visible in clear
+text during this test phase.
 
-Emby is configured only through `config.local.json`. Its lookup is read-only,
-uses the validated TMDB ID when available, and falls back to title/year only
-after the explicit fallback choice.
+Before linking, the bundled config can be read but saving is explicitly blocked.
+A failed file write never reports success or mirrors unsaved values to Chromium.
+Malformed JSON is reported instead of reverting to stale Chromium values. The
+browser may require authorization again after revocation or reinstallation.
+
+Emby lookup is read-only, uses the validated TMDB ID when available, and falls
+back to title/year only after the explicit fallback choice.
 
 ## Secret handling
 

@@ -2,6 +2,9 @@
 var JOB_PREFIX = "jspider.workflowJob.";
 
 // src/workflow-runner/client.ts
+function runWorkflowOperation(protectedExecution, action, data, standard) {
+  return protectedExecution ? runInWorkflowTab(action, data) : standard(action, data);
+}
 async function runInWorkflowTab(action, data) {
   const id = crypto.randomUUID();
   const key = JOB_PREFIX + id;
@@ -26,6 +29,11 @@ async function runInWorkflowTab(action, data) {
     try {
       await chrome.tabs.get(tab.id);
     } catch {
+      const completed = (await chrome.storage.local.get(key))[key];
+      if (completed?.state === "succeeded") return completed.result;
+      if (completed?.state === "failed") {
+        throw Object.assign(new Error(String(completed.error?.message ?? "Quick Workflow non riuscito.")), completed.error);
+      }
       throw new Error("Scheda di esecuzione chiusa. TaskFlow potrebbe avere gi\xE0 ricevuto i package: verifica nella WebUI prima di riprovare.");
     }
     await new Promise((resolve) => setTimeout(resolve, 1e3));
@@ -1286,13 +1294,20 @@ function renderLogDirectoryStatus(view, status2) {
   view.state.textContent = `CONFIG E CHROMIUM ALLINEATI \xB7 ${status2.configuredPath}.`;
 }
 function initializeLogDirectorySettings(view, dependencies) {
+  let configuredPath = "";
   const refresh = async () => {
-    renderLogDirectoryStatus(view, await dependencies.loadStatus());
+    const status2 = await dependencies.loadStatus();
+    configuredPath = status2.configuredPath.trim();
+    renderLogDirectoryStatus(view, status2);
   };
   const choose = () => {
     const path = view.pathInput.value.trim();
     if (!path) {
       view.state.textContent = "CONFIG MANCANTE \xB7 inserisci il percorso completo della cartella log.";
+      return;
+    }
+    if (configuredPath && path !== configuredPath) {
+      view.state.textContent = "Salva impostazioni per aggiornare il percorso nel config, poi autorizza la cartella log.";
       return;
     }
     view.state.textContent = "Seleziona direttamente la cartella log nella nuova scheda JSpider.";
@@ -1550,6 +1565,9 @@ var refreshQuickLog = () => void quickLog.refresh().catch((reason) => {
 });
 quickLogButton.addEventListener("click", refreshQuickLog);
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes["jspider.configFileRevision"]) {
+    void loadSettingsSummary().catch((reason) => status(reason.message, true));
+  }
   if (areaName === "local" && changes["jspider.quickWorkflowLog"]) refreshQuickLog();
   if (areaName === "local" && (changes["jspider.logDirectoryName"] || changes["jspider.logDirectoryPath"] || changes["jspider.logDirectoryRevision"])) {
     void logDirectorySettings.refresh().then(renderCreateState);
@@ -1575,6 +1593,9 @@ async function background(action, data = {}) {
     throw error;
   }
   return response.data;
+}
+function executeWorkflow(action, data) {
+  return runWorkflowOperation(settings?.protectedExecution !== false, action, data, background);
 }
 async function page(action, data = {}) {
   return background("page.forward", { request: { action, data } });
@@ -1990,6 +2011,10 @@ async function readSnapshot(action = "snapshot") {
 async function loadSettingsSummary() {
   settings = await background("settings.get");
   fillSettingsFields(settings, settingsFields());
+  input("protected-execution").checked = settings.protectedExecution;
+  input("emby-url").value = settings.embyBaseUrl;
+  input("emby-token").value = settings.embyToken;
+  element("config-file-state").textContent = settings.configFileLinked ? "config.local.json collegato \xB7 Salva impostazioni aggiorna il file e Chromium." : "Config leggibile. Collega config.local.json una volta per salvarvi le modifiche.";
   input("log-directory-config").value = settings.logDirectoryConfig;
   element("settings-state").textContent = `TaskFlow: ${settings.taskflowConfigured ? "configurato" : "token mancante"} \xB7 TMDB: ${settings.tmdbConfigured ? "configurato" : "token mancante"} \xB7 OMDb: ${settings.omdbConfigured ? "configurato" : "API key mancante"} \xB7 MDBList: ${settings.mdblistConfigured ? "configurato" : "API key mancante"} \xB7 Emby: ${settings.embyConfigured ? "configurato" : "config locale mancante"}.`;
   renderCreateState();
@@ -2108,6 +2133,12 @@ element("thank-selected").addEventListener("click", () => {
     status(`Ringraziate: ${result.thanks.thanked.length} \xB7 gi\xE0 sbloccate: ${result.thanks.already.length} \xB7 errori: ${result.thanks.failed.length}`, Boolean(result.thanks.failed.length));
   })().catch((reason) => status(reason.message, true));
 });
+element("link-config").addEventListener("click", () => {
+  void chrome.tabs.create({ url: chrome.runtime.getURL("settings-file.html") });
+});
+element("settings-button").addEventListener("click", () => {
+  void loadSettingsSummary().catch((reason) => status(reason.message, true));
+});
 element("settings-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void (async () => {
@@ -2119,11 +2150,19 @@ element("settings-form").addEventListener("submit", (event) => {
       const granted = await chrome.permissions.request({ origins: [originPattern] });
       if (!granted) throw new Error("Permesso di collegamento a TaskFlow non concesso.");
     }
-    const patch = { ...visibleSettings, taskflowBaseUrl: baseUrl };
+    const patch = {
+      ...visibleSettings,
+      taskflowBaseUrl: baseUrl,
+      protectedExecution: input("protected-execution").checked,
+      embyBaseUrl: input("emby-url").value,
+      embyToken: input("emby-token").value,
+      _logDirectory: input("log-directory-config").value
+    };
     settings = await background("settings.save", { settings: patch });
     await loadSettingsSummary();
     await loadCatalog();
-    status("Collegamenti salvati soltanto nell\u2019estensione.");
+    await logDirectorySettings.refresh();
+    status("Impostazioni salvate in config.local.json e copiate in Chromium.");
   })().catch((reason) => status(reason.message, true));
 });
 function reportSubmissionError(reason) {
@@ -2159,7 +2198,7 @@ element("quick-workflow").addEventListener("click", () => {
     createMode = lockCreateMode(createMode);
     renderCreateState();
     status(autodownload ? "Quick Workflow: Submission \u2192 Create \u2192 Start in corso. Non ripetere l\u2019invio." : "Submission al LinkGrabber in corso. Non ripetere l\u2019invio.");
-    const result = await runInWorkflowTab("taskflow.quickWorkflow", {
+    const result = await executeWorkflow("taskflow.quickWorkflow", {
       variants,
       hosts,
       autodownload,
@@ -2189,7 +2228,7 @@ element("load-packages").addEventListener("click", () => {
     createMode = lockCreateMode(createMode);
     renderCreateState();
     status("Caricamento package su JD in corso. Non ripetere l\u2019invio.");
-    const submission = await runInWorkflowTab("taskflow.loadPackages", {
+    const submission = await executeWorkflow("taskflow.loadPackages", {
       variants,
       hosts
     });

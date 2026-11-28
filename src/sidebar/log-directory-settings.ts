@@ -46,13 +46,20 @@ export function initializeLogDirectorySettings(
   refresh(): Promise<void>;
   dispose(): void;
 } {
+  let configuredPath = '';
   const refresh = async () => {
-    renderLogDirectoryStatus(view, await dependencies.loadStatus());
+    const status = await dependencies.loadStatus();
+    configuredPath = status.configuredPath.trim();
+    renderLogDirectoryStatus(view, status);
   };
   const choose = () => {
     const path = view.pathInput.value.trim();
     if (!path) {
       view.state.textContent = 'CONFIG MANCANTE · inserisci il percorso completo della cartella log.';
+      return;
+    }
+    if (configuredPath && path !== configuredPath) {
+      view.state.textContent = 'Salva impostazioni per aggiornare il percorso nel config, poi autorizza la cartella log.';
       return;
     }
     view.state.textContent = 'Seleziona direttamente la cartella log nella nuova scheda JSpider.';

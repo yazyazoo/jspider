@@ -304,11 +304,65 @@ function normalizeTaskFlowBaseUrl(value) {
   return url.origin;
 }
 
+// src/background/config-file.ts
+function result(request2) {
+  return new Promise((resolve, reject) => {
+    request2.onsuccess = () => resolve(request2.result);
+    request2.onerror = () => reject(request2.error ?? new Error("Archivio file non disponibile."));
+  });
+}
+var ConfigFileRepository = class {
+  open() {
+    return new Promise((resolve, reject) => {
+      const request2 = indexedDB.open("jspider-config-file", 1);
+      request2.onupgradeneeded = () => request2.result.createObjectStore("handles");
+      request2.onsuccess = () => resolve(request2.result);
+      request2.onerror = () => reject(request2.error ?? new Error("Archivio file non disponibile."));
+    });
+  }
+  async load() {
+    if (typeof indexedDB === "undefined") return null;
+    const db = await this.open();
+    try {
+      return await result(db.transaction("handles").objectStore("handles").get("config")) ?? null;
+    } finally {
+      db.close();
+    }
+  }
+  async save(handle2) {
+    const db = await this.open();
+    try {
+      const transaction = db.transaction("handles", "readwrite");
+      const done = new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = transaction.onerror = () => reject(transaction.error ?? new Error("Collegamento file non salvato."));
+      });
+      await result(transaction.objectStore("handles").put(handle2, "config"));
+      await done;
+    } finally {
+      db.close();
+    }
+  }
+};
+function parseLocalConfig(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new Error("config.local.json non \xE8 un JSON valido. Correggi il file prima di continuare.");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("config.local.json deve contenere un oggetto JSON.");
+  }
+  return value;
+}
+
 // src/background/settings.ts
 var STORAGE_KEY = "jspider.settings";
 var DEFAULT_BASE_URL = "https://taskflow.redprimrose.mov";
 var LOCAL_CONFIG_FILE = "config.local.json";
 var SETTINGS_KEYS = [
+  "protectedExecution",
   "taskflowBaseUrl",
   "taskflowToken",
   "tmdbCredential",
@@ -323,24 +377,23 @@ function selectSettings(value) {
   return Object.fromEntries(SETTINGS_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(value, key)).map((key) => [key, value[key]]));
 }
 async function loadLocalConfig() {
-  try {
-    const response = await fetch(chrome.runtime.getURL(LOCAL_CONFIG_FILE), { cache: "no-store" });
-    if (!response.ok) {
-      if (response.status !== 404) {
-        console.warn(
-          "JSpider: config.local.json ignorato.",
-          new Error(`HTTP ${response.status}`)
-        );
+  const handle2 = await new ConfigFileRepository().load();
+  if (handle2) {
+    try {
+      return parseLocalConfig(await (await handle2.getFile()).text());
+    } catch (reason) {
+      if (reason instanceof DOMException) {
+        throw new Error("File config non accessibile. Riautorizza config.local.json nelle impostazioni.");
       }
-      return {};
+      throw reason;
     }
-    const value = await response.json();
-    if (!isRecord3(value)) throw new TypeError("La configurazione locale deve essere un oggetto JSON.");
-    return value;
-  } catch (reason) {
-    console.warn("JSpider: config.local.json ignorato.", reason);
-    return {};
   }
+  const response = await fetch(chrome.runtime.getURL(LOCAL_CONFIG_FILE), { cache: "no-store" });
+  if (response.status === 404) return {};
+  if (!response.ok) throw new Error(`Lettura config.local.json: HTTP ${response.status}.`);
+  const value = await response.json();
+  if (!isRecord3(value)) throw new Error("config.local.json deve contenere un oggetto JSON.");
+  return value;
 }
 function normalizeStoredBaseUrl(value) {
   if (typeof value !== "string" || !value.trim()) return DEFAULT_BASE_URL;
@@ -353,6 +406,7 @@ function normalizeStoredBaseUrl(value) {
 function normalizeStored(value) {
   const raw = isRecord3(value) ? value : {};
   return {
+    protectedExecution: typeof raw.protectedExecution === "boolean" ? raw.protectedExecution : true,
     taskflowBaseUrl: normalizeStoredBaseUrl(raw.taskflowBaseUrl),
     taskflowToken: typeof raw.taskflowToken === "string" ? raw.taskflowToken : "",
     tmdbCredential: typeof raw.tmdbCredential === "string" ? raw.tmdbCredential : "",
@@ -361,18 +415,9 @@ function normalizeStored(value) {
   };
 }
 async function loadSettings() {
-  const [result, local] = await Promise.all([
-    chrome.storage.local.get(STORAGE_KEY),
-    loadLocalConfig()
-  ]);
-  const stored = normalizeStored(selectSettings(result[STORAGE_KEY]));
-  const settings = normalizeStored({
-    ...selectSettings(result[STORAGE_KEY]),
-    ...selectSettings(local)
-  });
-  if (SETTINGS_KEYS.some((key) => settings[key] !== stored[key])) {
-    await chrome.storage.local.set({ [STORAGE_KEY]: settings });
-  }
+  const local = await loadLocalConfig();
+  const settings = normalizeStored(selectSettings(local));
+  await chrome.storage.local.set({ [STORAGE_KEY]: { ...local, ...settings } });
   return settings;
 }
 async function loadEmbySettings() {
@@ -383,18 +428,23 @@ async function loadEmbySettings() {
   };
 }
 async function settingsSummary() {
-  const [settings, emby, local] = await Promise.all([
-    loadSettings(),
-    loadEmbySettings(),
-    loadLocalConfig()
-  ]);
+  const local = await loadLocalConfig();
+  const settings = normalizeStored(local);
+  const emby = {
+    baseUrl: typeof local.embyBaseUrl === "string" ? local.embyBaseUrl.trim().replace(/\/$/, "") : "",
+    token: typeof local.embyToken === "string" ? local.embyToken.trim() : ""
+  };
+  await chrome.storage.local.set({ [STORAGE_KEY]: { ...local, ...settings } });
   return {
+    protectedExecution: settings.protectedExecution,
+    configFileLinked: Boolean(await new ConfigFileRepository().load()),
     taskflowBaseUrl: settings.taskflowBaseUrl,
     taskflowToken: settings.taskflowToken,
     tmdbCredential: settings.tmdbCredential,
     omdbApiKey: settings.omdbApiKey,
     mdblistApiKey: settings.mdblistApiKey,
     embyBaseUrl: emby.baseUrl,
+    embyToken: emby.token,
     logDirectoryConfig: typeof local._logDirectory === "string" ? local._logDirectory.trim() : "",
     taskflowConfigured: Boolean(settings.taskflowToken),
     tmdbConfigured: Boolean(settings.tmdbCredential),
@@ -403,17 +453,36 @@ async function settingsSummary() {
     embyConfigured: Boolean(emby.baseUrl && emby.token)
   };
 }
-async function updateSettings(patch) {
-  const current = await loadSettings();
+async function saveSettingsFile(patch) {
+  const handle2 = await new ConfigFileRepository().load();
+  if (!handle2) throw new Error("Collega config.local.json nelle impostazioni prima di salvare. Nessun valore \xE8 stato modificato.");
+  const local = parseLocalConfig(await (await handle2.getFile()).text());
+  const current = normalizeStored(local);
   const next = {
+    protectedExecution: typeof patch.protectedExecution === "boolean" ? patch.protectedExecution : current.protectedExecution,
     taskflowBaseUrl: typeof patch.taskflowBaseUrl === "string" && patch.taskflowBaseUrl.trim() ? normalizeTaskFlowBaseUrl(patch.taskflowBaseUrl.trim()) : current.taskflowBaseUrl,
     taskflowToken: typeof patch.taskflowToken === "string" ? patch.taskflowToken.trim() : current.taskflowToken,
     tmdbCredential: typeof patch.tmdbCredential === "string" ? patch.tmdbCredential.trim() : current.tmdbCredential,
     omdbApiKey: typeof patch.omdbApiKey === "string" ? patch.omdbApiKey.trim() : current.omdbApiKey,
     mdblistApiKey: typeof patch.mdblistApiKey === "string" ? patch.mdblistApiKey.trim() : current.mdblistApiKey
   };
-  await chrome.storage.local.set({ [STORAGE_KEY]: next });
+  const document2 = { ...local, ...next };
+  for (const key of ["embyBaseUrl", "embyToken", "_logDirectory"]) {
+    if (typeof patch[key] === "string") document2[key] = patch[key].trim();
+  }
+  try {
+    const writable = await handle2.createWritable();
+    await writable.write(`${JSON.stringify(document2, null, 2)}
+`);
+    await writable.close();
+  } catch {
+    throw new Error("Salvataggio del file non riuscito. Riautorizza config.local.json; Chromium non \xE8 stato aggiornato.");
+  }
   return settingsSummary();
+}
+async function updateSettings(patch) {
+  const save = () => saveSettingsFile(patch);
+  return typeof navigator !== "undefined" && navigator.locks ? navigator.locks.request("jspider-config-settings", save) : save();
 }
 
 // src/background/page-bridge.ts
@@ -731,10 +800,10 @@ var EmbyClient = class {
     }
     const items = await this.getItems(url);
     const matchInput = resolutionInput(input);
-    const result = resolveEmbyPresence(items, matchInput);
-    if (input.mediaKind !== "tv" || result.state !== "present") return result;
+    const result2 = resolveEmbyPresence(items, matchInput);
+    if (input.mediaKind !== "tv" || result2.state !== "present") return result2;
     const matchingSeries = matchingEmbyItems(items, matchInput);
-    if (matchingSeries.length > 1) return { ...result, state: "ambiguous" };
+    if (matchingSeries.length > 1) return { ...result2, state: "ambiguous" };
     const series = matchingSeries[0];
     if (!series?.id) throw new Error("Risposta Emby non valida.");
     const seasonItems = await this.getItems(tvEndpoint(this.baseUrl, series.id, "Seasons"));
@@ -1410,13 +1479,13 @@ var QuickWorkflowLogStore = class {
     });
   }
   serialize(operation) {
-    const result = this.operations.then(operation, operation);
-    this.operations = result.then(() => void 0, () => void 0);
-    return result;
+    const result2 = this.operations.then(operation, operation);
+    this.operations = result2.then(() => void 0, () => void 0);
+    return result2;
   }
   async readDirect() {
-    const result = await this.storage.get(STORAGE_KEY2);
-    return isDocument(result[STORAGE_KEY2]) ? result[STORAGE_KEY2] : null;
+    const result2 = await this.storage.get(STORAGE_KEY2);
+    return isDocument(result2[STORAGE_KEY2]) ? result2[STORAGE_KEY2] : null;
   }
   start(workflowName = "Quick Workflow", follow) {
     const runId = this.createRunId();
@@ -1702,8 +1771,8 @@ async function executeJob(id, storage, execute, serializeError2) {
   await storage.set({ [key]: running });
   let completed;
   try {
-    const result = await execute(stored.request);
-    const serializable2 = JSON.parse(JSON.stringify(result, (_key, value) => value instanceof Error ? serializeError2(value) : value));
+    const result2 = await execute(stored.request);
+    const serializable2 = JSON.parse(JSON.stringify(result2, (_key, value) => value instanceof Error ? serializeError2(value) : value));
     completed = { ...running, request: {}, state: "succeeded", result: serializable2 };
   } catch (reason) {
     completed = { ...running, state: "failed", error: serializeError2(reason) };
@@ -1736,8 +1805,12 @@ void navigator.locks.request(`jspider-workflow-${location.hash.slice(1)}`, async
   } else if (job.state === "failed") {
     state.textContent = `Errore: ${String(job.error?.message ?? "operazione non riuscita")}. Verifica nella WebUI prima di ripetere l\u2019invio.`;
   } else {
-    const result = job.result;
-    state.textContent = result.startError ? `Workflow ${result.createdWorkflow?.id} creato; Start non riuscito: ${result.startError.message}. Riprova soltanto Start dalla WebUI.` : `Operazione completata${result.createdWorkflow ? ` \xB7 Workflow ${result.createdWorkflow.id}` : ""}. Puoi chiudere questa scheda.`;
+    const result2 = job.result;
+    state.textContent = result2.startError ? `Workflow ${result2.createdWorkflow?.id} creato; Start non riuscito: ${result2.startError.message}. Riprova soltanto Start dalla WebUI.` : `Operazione completata${result2.createdWorkflow ? ` \xB7 Workflow ${result2.createdWorkflow.id}` : ""}. Chiusura della scheda\u2026`;
+    if (!result2.startError) {
+      const tab = await chrome.tabs.getCurrent();
+      if (tab?.id !== void 0) await chrome.tabs.remove(tab.id);
+    }
   }
 }).catch((reason) => {
   state.textContent = reason instanceof Error ? reason.message : "Esecuzione non disponibile.";

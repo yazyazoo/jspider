@@ -23,7 +23,11 @@ void navigator.locks.request(`jspider-workflow-${location.hash.slice(1)}`, async
     const result = job.result as { createdWorkflow?: { id: string }; startError?: { message?: string } };
     state.textContent = result.startError
       ? `Workflow ${result.createdWorkflow?.id} creato; Start non riuscito: ${result.startError.message}. Riprova soltanto Start dalla WebUI.`
-      : `Operazione completata${result.createdWorkflow ? ` · Workflow ${result.createdWorkflow.id}` : ''}. Puoi chiudere questa scheda.`;
+      : `Operazione completata${result.createdWorkflow ? ` · Workflow ${result.createdWorkflow.id}` : ''}. Chiusura della scheda…`;
+    if (!result.startError) {
+      const tab = await chrome.tabs.getCurrent();
+      if (tab?.id !== undefined) await chrome.tabs.remove(tab.id);
+    }
   }
 }).catch((reason: unknown) => {
   state.textContent = reason instanceof Error ? reason.message : 'Esecuzione non disponibile.';

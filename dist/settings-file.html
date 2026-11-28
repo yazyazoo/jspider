@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JSpider · Configurazione</title>
+  <link rel="stylesheet" href="log-directory.css">
+</head>
+<body><main>
+  <span class="eyebrow">JSPIDER · IMPOSTAZIONI</span>
+  <h1>Collega il file config<span>.</span></h1>
+  <p>Seleziona il tuo <strong>config.local.json</strong> e consenti la scrittura. Se usi i sorgenti, scegli quello nella root JSpider; la build ne copia il contenuto in dist. Se hai scaricato soltanto l’estensione, scegli quello accanto a manifest.json.</p>
+  <p>JSpider leggerà e aggiornerà direttamente il file scelto. Lo storage Chromium sarà una copia dei suoi valori.</p>
+  <button id="choose-config" type="button">Scegli config.local.json</button>
+  <p id="config-state" role="status">Il collegamento serve una volta; il browser può chiedere nuovamente l’autorizzazione.</p>
+</main><script type="module" src="settings-file.js"></script></body>
+</html>

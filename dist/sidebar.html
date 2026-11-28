@@ -17,6 +17,8 @@
     </div>
     <div id="settings-panel" class="settings-popover" role="dialog" aria-label="Impostazioni JSpider" hidden>
       <form id="settings-form">
+        <p id="config-file-state" class="muted small">Verifica file di configurazione…</p>
+        <button id="link-config" class="secondary" type="button">Collega config.local.json</button>
         <label for="taskflow-url">Servizio TaskFlow</label>
         <input id="taskflow-url" type="url" required placeholder="https://taskflow.example">
         <label for="taskflow-token" class="spaced">Token TaskFlow</label>
@@ -27,9 +29,16 @@
         <input id="omdb-api-key" type="text" autocomplete="off">
         <label for="mdblist-api-key" class="spaced">API key MDBList</label>
         <input id="mdblist-api-key" type="text" autocomplete="off">
+        <label for="emby-url" class="spaced">Servizio Emby</label>
+        <input id="emby-url" type="url" autocomplete="off">
+        <label for="emby-token" class="spaced">Token Emby</label>
+        <input id="emby-token" type="text" autocomplete="off">
+        <div class="spaced">
+          <div class="label-info"><label class="check"><input id="protected-execution" type="checkbox" checked> Esecuzione protetta</label><button type="button" class="info-button" data-tooltip aria-describedby="tip-protected-execution" aria-label="Informazioni sulle modalità di esecuzione">i</button><span id="tip-protected-execution" role="tooltip" hidden>Attiva (consigliata): apre una scheda JSpider in secondo piano, che si chiude automaticamente al successo. In caso di errore rimane aperta. Usala se JD o l’host impiegano diversi minuti a controllare i link: l’esecuzione continua anche chiudendo la sidebar. Disattiva: usa il metodo precedente nel background dell’estensione, senza schede aggiuntive. È comoda per controlli rapidi, ma nelle attese lunghe Chromium può interrompere il collegamento prima di Create e Start. Vale anche per “Carica package su JD”. La scelta viene salvata in config.local.json.</span></div>
+        </div>
         <div class="log-directory-setting spaced">
           <label for="log-directory-config">Percorso cartella log da config.local.json</label>
-          <input id="log-directory-config" type="text" autocomplete="off" spellcheck="false" readonly placeholder="C:\Users\nome\JSpider\log">
+          <input id="log-directory-config" type="text" autocomplete="off" spellcheck="false" placeholder="C:\Users\nome\JSpider\log">
           <p id="log-directory-state" class="muted small">Verifica configurazione in corso…</p>
           <button id="log-directory-choose" class="secondary" type="button">Autorizza cartella log</button>
         </div>
@@ -38,7 +47,7 @@
           <p id="webui-version-state" class="muted small" aria-live="polite">Controllo non eseguito.</p>
           <button id="webui-version-check" class="secondary" type="button">Controlla aggiornamenti WebUI</button>
         </div>
-        <button type="submit" class="settings-save">Salva collegamenti</button>
+        <button type="submit" class="settings-save">Salva impostazioni</button>
       </form>
       <p id="settings-state" class="muted small"></p>
     </div>

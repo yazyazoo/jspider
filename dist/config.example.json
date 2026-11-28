@@ -1,5 +1,6 @@
 {
   "taskflowBaseUrl": "https://taskflow.redprimrose.mov",
+  "protectedExecution": true,
   "taskflowToken": "INSERISCI_TOKEN_TASKFLOW",
   "tmdbCredential": "INSERISCI_TOKEN_O_API_KEY_TMDB",
   "omdbApiKey": "INSERISCI_API_KEY_OMDB",

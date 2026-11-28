@@ -96,4 +96,22 @@ describe('log directory settings', () => {
     expect(opened).toBe(false);
     expect(view.state.textContent).toContain('percorso completo');
   });
+
+  it('requires saving an edited log path before authorizing it', async () => {
+    const view = fixture();
+    let opened = false;
+    const controller = initializeLogDirectorySettings(view, {
+      async loadStatus() {
+        return { configured: true, name: 'log', permission: 'granted',
+          configuredPath: 'C:\\work\\JSpider\\log', authorizedPath: 'C:\\work\\JSpider\\log' };
+      },
+      async openPicker() { opened = true; },
+    });
+    await controller.refresh();
+    view.pathInput.value = 'C:\\new\\JSpider\\log';
+    view.chooseButton.click();
+    expect(opened).toBe(false);
+    expect(view.state.textContent).toContain('Salva impostazioni');
+    controller.dispose();
+  });
 });

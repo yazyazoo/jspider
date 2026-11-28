@@ -9,10 +9,6 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.target !== 'background') return undefined;
-  if (message.action === 'taskflow.quickWorkflow' || message.action === 'taskflow.loadPackages') {
-    sendResponse({ ok: false, error: { message: 'Avvia questa operazione dalla scheda di esecuzione JSpider.' } });
-    return false;
-  }
   void handle(message, sender).then(
     (data) => sendResponse({ ok: true, data }),
     (reason) => sendResponse({ ok: false, error: serializeError(reason) }),

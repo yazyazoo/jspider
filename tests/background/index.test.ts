@@ -62,13 +62,11 @@ describe('background Quick Workflow log actions', () => {
       .resolves.toEqual({ ok: true, data: { cleared: true } });
   });
 
-  it('rejects long operations on the service worker message channel', () => {
-    const reply = vi.fn();
-    expect(listener?.({ target: 'background', action: 'taskflow.quickWorkflow' }, {}, reply)).toBe(false);
-    expect(reply).toHaveBeenCalledWith({ ok: false, error: expect.objectContaining({
-      message: expect.stringContaining('scheda di esecuzione'),
-    }) });
-    expect(fetch).not.toHaveBeenCalled();
+  it('supports the original message channel when protected execution is disabled', async () => {
+    const result = await new Promise(resolve => {
+      expect(listener?.({ target: 'background', action: 'taskflow.quickWorkflow' }, {}, resolve)).toBe(true);
+    });
+    expect(result).toMatchObject({ ok: false, error: { message: 'Dati Quick Workflow non validi.' } });
   });
 
   it('continues Quick Workflow when local diagnostic storage is unavailable', async () => {
@@ -297,7 +295,7 @@ describe('background Quick Workflow log actions', () => {
     };
     vi.mocked(fetch).mockImplementation(async (request) => {
       const url = new URL(request instanceof Request ? request.url : request.toString());
-      if (url.protocol === 'chrome-extension:') return json({});
+      if (url.protocol === 'chrome-extension:') return json({ omdbApiKey: 'omdb-secret' });
       if (url.origin === 'https://www.omdbapi.com') {
         expect(url.searchParams.get('apikey')).toBe('omdb-secret');
         expect(url.searchParams.get('i')).toBe('tt15398776');
@@ -316,6 +314,9 @@ describe('background Quick Workflow log actions', () => {
 function configureSuccessfulTaskFlow(): void {
   vi.mocked(fetch).mockImplementation(async (request) => {
     const url = request instanceof Request ? request.url : request.toString();
+    if (url === 'chrome-extension://jspider/config.local.json') {
+      return json({ taskflowBaseUrl: 'https://taskflow.example', taskflowToken: 'token' });
+    }
     if (url.endsWith('/api/v1/integrations')) {
       return json([{ id: '2510505', type: 'jdownloader', enabled: true }]);
     }
